@@ -1,14 +1,18 @@
 package utils
 
 import (
+	"backend/src/config"
 	"errors"
-	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
+var jwtSecret []byte
+
+func InitJWTSecret(cfg *config.Config) {
+	jwtSecret = []byte(cfg.JWTSecret)
+}
 
 // GenerateJWT generates a JWT token for a user.
 func GenerateJWT(userID string, email string) (string, error) {

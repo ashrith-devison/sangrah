@@ -4,12 +4,20 @@ import (
 	"database/sql"
 	"errors"
 
-	"craftiverse.co.in/fileVault/backend/utils"
+	"backend/src/utils"
+
 	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthRepo struct {
 	db *sql.DB
+}
+
+type AuthRepository interface {
+	IsUsernameTaken(username string) (bool, error)
+	RegisterUser(username, email, password string) (string, string, string, string, error)
+	GetUserByEmail(email string) (string, string, error)
+	VerifyPassword(hashedPassword, password string) error
 }
 
 func NewAuthRepo(db *sql.DB) *AuthRepo {
