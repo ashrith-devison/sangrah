@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"backend/src/dto"
-	"backend/src/services"
+	"backend/src/servicesImpl"
 	"backend/src/utils"
 )
 
@@ -17,18 +17,24 @@ func AuthServiceUnavailable() bool {
 	return authService == nil
 }
 
-var authService *services.AuthService
-
-var logger *zap.Logger
-
-func InitLogger(l *zap.Logger) {
-	logger = l
-}
+var authService *servicesImpl.AuthService
 
 func InitAuthService() {
-	authService = services.NewAuthService()
+	authService = servicesImpl.NewAuthService()
 }
 
+// RegisterHandler handles user registration
+// @Summary Register a new user
+// @Description Registers a new user with username, email, and password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param registerRequest body dto.RegisterRequest true "User registration payload"
+// @Success 201 {object} utils.APIResponse "User registered successfully"
+// @Failure 400 {object} utils.APIError "Invalid request payload"
+// @Failure 409 {object} utils.APIError "Email already registered"
+// @Failure 500 {object} utils.APIError "Registration failed"
+// @Router /api/v1/auth/register [post]
 func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	requestID := r.Header.Get("X-Request-ID")
 	if requestID == "" {
@@ -54,6 +60,17 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	utils.WriteAPIResponse(w, http.StatusCreated, "User registered successfully", resp)
 }
 
+// LoginHandler handles user login
+// @Summary Login user
+// @Description Authenticates user and returns JWT token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param loginRequest body dto.LoginRequest true "User login payload"
+// @Success 200 {object} utils.APIResponse "Login successful"
+// @Failure 400 {object} utils.APIError "Invalid login payload"
+// @Failure 401 {object} utils.APIError "Login failed"
+// @Router /api/v1/auth/login [post]
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	requestID := r.Header.Get("X-Request-ID")
 	if requestID == "" {

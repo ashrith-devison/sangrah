@@ -8,6 +8,8 @@ import (
 	"os"
 	"time"
 
+	_ "backend/docs"
+
 	"github.com/joho/godotenv"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"go.uber.org/zap"
@@ -44,6 +46,11 @@ func main() {
 	authMux := http.NewServeMux()
 	routers.RegisterAuthRoutes(authMux)
 	mux.Handle("/api/v1/auth/", http.StripPrefix("/api/v1/auth", authMux))
+
+	// Register file routes
+	fileMux := http.NewServeMux()
+	routers.RegisterFileRoutes(fileMux)
+	mux.Handle("/api/v1/file/", http.StripPrefix("/api/v1/file", fileMux))
 
 	server := &http.Server{
 		Addr:         ":" + port,
