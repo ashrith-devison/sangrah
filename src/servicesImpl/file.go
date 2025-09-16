@@ -1,7 +1,14 @@
 package servicesImpl
 
 import (
-	"backend/src/services"
+	"backend/src/dto"
+	"backend/src/repos"
+	"backend/src/utils"
+	"crypto/sha256"
+	"fmt"
+	"io"
+	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -10,15 +17,54 @@ import (
 // FileService implements services.FileServiceInterface
 type FileService struct{}
 
+func (fs *FileService) StoreFileMetadata(filename, mimetype, hash, path string, uploader string) error {
+	if uploader == "" {
+		uploader = "unknown"
+	}
+	fileInfo, err := os.Stat(path)
+	var fileSize float64
+	if err == nil {
+		fileSize = float64(fileInfo.Size())
+	}
+	meta := dto.FileMeta{
+		Filename:       filename,
+		MIMEType:       mimetype,
+		SHA256:         hash,
+		Path:           path,
+		Uploader:       uploader,
+		UploadDate:     "now", // Replace with actual timestamp
+		ReferenceID:    hash,
+		ReferenceCount: 1,
+		FileSize:       fileSize,
+	}
+	fileHashes[hash] = hash
+	fileMetadata[hash] = meta
+
+	// Save metadata to database using FileRepo
+	db, err := utils.ConnectPostgres()
+	if err != nil {
+		log.Printf("Failed to connect to DB: %v", err)
+		return err
+	}
+	defer db.Close()
+	fileRepo := repos.NewFileRepo(db)
+	if err := fileRepo.SaveFileMeta(meta); err != nil {
+		log.Printf("Failed to save file metadata: %v", err)
+		return err
+	}
+	return nil
+}
+
+// CoreUpload implements the interface method for modular upload logic
+func (fs *FileService) CoreUpload(file io.ReadSeeker, filename string, r *http.Request) (string, string, string, string, error) {
+	return CoreUpload(file, filename, r)
+}
+
 func (fs *FileService) CheckDuplicate(hash string) (bool, string) {
 	return CheckDuplicate(hash)
 }
 
-func (fs *FileService) StoreFileMetadata(filename, mimetype, hash, path string, r *http.Request) {
-	StoreFileMetadata(filename, mimetype, hash, path, r)
-}
-
-func (fs *FileService) GetFileByPath(path string) (services.FileMeta, error) {
+func (fs *FileService) GetFileByPath(path string) (dto.FileMeta, error) {
 	// Accept both hash_path and direct path
 	for _, meta := range fileMetadata {
 		if meta.Path == path || filepath.Base(meta.Path) == filepath.Base(path) {
@@ -28,16 +74,16 @@ func (fs *FileService) GetFileByPath(path string) (services.FileMeta, error) {
 	// If not found, fallback to direct file existence
 	if _, err := os.Stat(path); err == nil {
 		// Return minimal meta if file exists but not tracked
-		return services.FileMeta{Path: path, Filename: filepath.Base(path)}, nil
+		return dto.FileMeta{Path: path, Filename: filepath.Base(path)}, nil
 	}
-	return services.FileMeta{}, http.ErrMissingFile
+	return dto.FileMeta{}, http.ErrMissingFile
 }
 
 var fileHashes = make(map[string]string) // hash -> referenceID
-var fileMetadata = make(map[string]services.FileMeta)
+var fileMetadata = make(map[string]dto.FileMeta)
 
 // FileMetadata returns all file metadata
-func FileMetadata() map[string]services.FileMeta {
+func FileMetadata() map[string]dto.FileMeta {
 	return fileMetadata
 }
 
@@ -48,20 +94,41 @@ func CheckDuplicate(hash string) (bool, string) {
 }
 
 // StoreFileMetadata saves metadata for a new file
-func StoreFileMetadata(filename, mimetype, hash, path string, r *http.Request) {
-	uploader := r.Header.Get("X-User-ID")
-	if uploader == "" {
-		uploader = "unknown"
+
+// CoreUpload handles the core logic for file upload, including MIME validation and saving
+func CoreUpload(file io.ReadSeeker, filename string, r *http.Request) (string, string, string, string, error) {
+	buffer := make([]byte, 512)
+	_, err := file.Read(buffer)
+	if err != nil && err != io.EOF {
+		return "", "", "", "", err
 	}
-	meta := services.FileMeta{
-		Filename:    filename,
-		MIMEType:    mimetype,
-		SHA256:      hash,
-		Path:        path,
-		Uploader:    uploader,
-		UploadDate:  "now", // Replace with actual timestamp
-		ReferenceID: hash,
+	filetype := http.DetectContentType(buffer)
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return "", "", "", "", err
 	}
-	fileHashes[hash] = hash
-	fileMetadata[hash] = meta
+	hash := sha256.New()
+	_, err = io.Copy(hash, file)
+	if err != nil {
+		return "", "", "", "", err
+	}
+	hashSum := fmt.Sprintf("%x", hash.Sum(nil))
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return "", "", "", "", err
+	}
+	exts, err := mime.ExtensionsByType(filetype)
+	var ext string
+	if err == nil && len(exts) > 0 {
+		ext = exts[0]
+	}
+	filePath := filepath.Join("storage", hashSum+ext)
+	out, err := os.Create(filePath)
+	if err != nil {
+		return "", "", "", "", err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, file)
+	if err != nil {
+		return "", "", "", "", err
+	}
+	return hashSum + ext, filetype, hashSum, filePath, nil
 }

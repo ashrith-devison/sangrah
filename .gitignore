@@ -34,4 +34,5 @@ postgres_data/
 
 # Other
 .logs/
+storage/
 tmp/

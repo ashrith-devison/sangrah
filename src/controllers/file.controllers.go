@@ -1,19 +1,139 @@
 package controllers
 
 import (
+	"backend/src/repos"
 	"backend/src/services"
 	servicesImpl "backend/src/servicesImpl"
 	"backend/src/utils"
-	"crypto/sha256"
+	"database/sql"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"go.uber.org/zap"
 )
 
+// AnalyticsHandler serves analytics about file storage and uploads
+// @Summary File storage analytics
+// @Description Returns analytics: user count, file count, deduplication savings, etc.
+// @Tags analytics
+// @Produce json
+// @Success 200 {object} utils.APIResponse "Analytics data"
+// @Router /api/v1/file/storage/analytics [get]
+func AnalyticsHandler(w http.ResponseWriter, r *http.Request) {
+	db, err := utils.ConnectPostgres()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
+		return
+	}
+	defer db.Close()
+	fileRepo := repos.NewFileRepo(db)
+	uniqueUploaders, logicalFiles, savedSize, err := fileRepo.GetFileAnalytics()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to fetch analytics", err.Error())
+		return
+	}
+
+	// Physical file count and size from storage dir
+	storageDir := "storage"
+	physicalFiles := 0
+	physicalSize := float64(0)
+	entries, err := os.ReadDir(storageDir)
+	if err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				physicalFiles++
+				info, err := entry.Info()
+				if err == nil {
+					physicalSize += float64(info.Size())
+				}
+			}
+		}
+	}
+
+	analytics := map[string]interface{}{
+		"unique_uploaders":    uniqueUploaders,
+		"physical_files":      physicalFiles,
+		"logical_files":       logicalFiles,
+		"total_storage_bytes": physicalSize,
+		"space_saved_bytes":   savedSize,
+		"space_saved_mb":      savedSize / (1024 * 1024),
+	}
+	utils.WriteAPIResponse(w, http.StatusOK, "Storage analytics", analytics)
+}
+
 var fileService services.FileServiceInterface = &servicesImpl.FileService{}
+
+// FileMetaUploadHandler handles file upload with metadata
+// @Summary Upload file with metadata
+// @Description Accepts file and metadata, saves both to database
+// @Tags file
+// @Accept multipart/form-data
+// @Produce json
+// @Param file formData file true "File to upload"
+// @Param uploader formData string true "Uploader (username)"
+// @Success 201 {object} utils.APIResponse "File and metadata uploaded"
+// @Failure 400 {object} utils.APIError "Bad request"
+// @Failure 500 {object} utils.APIError "Internal server error"
+// @Router /api/v1/file/upload-meta [post]
+func FileMetaUploadHandler(w http.ResponseWriter, r *http.Request) {
+	requestID := r.Header.Get("X-Request-ID")
+	if requestID == "" {
+		requestID = "filemeta-" + fmt.Sprintf("%d", os.Getpid())
+	}
+	logger.Info("[UPLOAD-META] Request", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr))
+	err := r.ParseMultipartForm(10 << 20)
+	if err != nil {
+		logger.Error("Failed to parse form", zap.String("requestID", requestID), zap.Error(err))
+		utils.WriteAPIError(w, http.StatusBadRequest, "Failed to parse form", err.Error())
+		return
+	}
+
+	uploader := r.FormValue("uploader")
+	if uploader == "" {
+		logger.Error("Missing uploader", zap.String("requestID", requestID))
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing uploader", "uploader (username) required")
+		return
+	}
+
+	file, handler, err := r.FormFile("file")
+	if err != nil {
+		logger.Error("File not found in request", zap.String("requestID", requestID), zap.Error(err))
+		utils.WriteAPIError(w, http.StatusBadRequest, "File not found in request", err.Error())
+		return
+	}
+	defer file.Close()
+
+	// Use CoreUpload for modular upload logic
+	filename, mimetype, hash, path, err := servicesImpl.CoreUpload(file, handler.Filename, r)
+	if err != nil {
+		logger.Error("Failed to upload file", zap.String("requestID", requestID), zap.Error(err))
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to upload file", err.Error())
+		return
+	}
+	log.Print(uploader)
+	err = fileService.StoreFileMetadata(filename, mimetype, hash, path, uploader)
+	if err != nil {
+		logger.Error("Failed to save file metadata", zap.String("requestID", requestID), zap.Error(err))
+		if err == sql.ErrNoRows {
+			utils.WriteAPIError(w, http.StatusBadRequest, "Uploader does not exist", "Uploader must be a registered user")
+		} else {
+			utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to save file metadata", err.Error())
+		}
+		return
+	}
+	logger.Info("File and metadata uploaded", zap.String("requestID", requestID), zap.String("filename", filename), zap.String("sha256", hash), zap.String("uploader", uploader))
+
+	resp := map[string]interface{}{
+		"message": "File and metadata uploaded successfully.",
+		"sha256":  hash,
+	}
+	utils.WriteAPIResponse(w, http.StatusCreated, "File and metadata uploaded", resp)
+}
 
 // @Summary Get file by path
 // @Description Serves a file from storage by its path
@@ -26,33 +146,37 @@ var fileService services.FileServiceInterface = &servicesImpl.FileService{}
 // @Router /api/v1/file/path/download [get]
 func ServeFileByPathHandler(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
-	utils.Info("[DOWNLOAD] Request from %s for file path: %s", r.RemoteAddr, path)
+	requestID := r.Header.Get("X-Request-ID")
+	if requestID == "" {
+		requestID = "file-download-" + fmt.Sprintf("%d", os.Getpid())
+	}
+	logger.Info("[DOWNLOAD] Request", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("path", path))
 	if path == "" {
-		utils.Warn("[DOWNLOAD] Missing file path from %s", r.RemoteAddr)
+		logger.Error("Missing file path", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr))
 		utils.WriteAPIError(w, http.StatusBadRequest, "Missing file path", "No path provided")
 		return
 	}
 	cleanPath := filepath.Clean(path)
 	if strings.Contains(cleanPath, "..") {
-		utils.Warn("[DOWNLOAD] Path traversal attempt from %s: %s", r.RemoteAddr, path)
+		logger.Error("Path traversal attempt", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("path", path))
 		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid file path", "Path traversal detected")
 		return
 	}
 	absPath := filepath.Join("storage", cleanPath)
 	fileMeta, err := fileService.GetFileByPath(absPath)
 	if err != nil {
-		utils.Error("[DOWNLOAD] File not found for %s: %s", r.RemoteAddr, absPath)
+		logger.Error("File not found", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("path", absPath), zap.Error(err))
 		utils.WriteAPIError(w, http.StatusNotFound, "File not found", err.Error())
 		return
 	}
 	file, err := os.Open(fileMeta.Path)
 	if err != nil {
-		utils.Error("[DOWNLOAD] Failed to open file for %s: %s, error: %v", r.RemoteAddr, fileMeta.Path, err)
+		logger.Error("Failed to open file", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("path", fileMeta.Path), zap.Error(err))
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to open file", err.Error())
 		return
 	}
 	defer file.Close()
-	utils.Info("[DOWNLOAD] Serving file to %s: %s", r.RemoteAddr, fileMeta.Path)
+	logger.Info("Serving file", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("path", fileMeta.Path))
 	w.Header().Set("Content-Disposition", "attachment; filename="+filepath.Base(cleanPath))
 	w.Header().Set("Content-Type", "application/octet-stream")
 	io.Copy(w, file)
@@ -70,33 +194,37 @@ func ServeFileByPathHandler(w http.ResponseWriter, r *http.Request) {
 // @Router /api/v1/file/path/view [get]
 func ServeFileByPathViewHandler(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
-	utils.Info("[VIEW] Request from %s for file path: %s", r.RemoteAddr, path)
+	requestID := r.Header.Get("X-Request-ID")
+	if requestID == "" {
+		requestID = "file-view-" + fmt.Sprintf("%d", os.Getpid())
+	}
+	logger.Info("[VIEW] Request", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("path", path))
 	if path == "" {
-		utils.Warn("[VIEW] Missing file path from %s", r.RemoteAddr)
+		logger.Error("Missing file path", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr))
 		utils.WriteAPIError(w, http.StatusBadRequest, "Missing file path", "No path provided")
 		return
 	}
 	cleanPath := filepath.Clean(path)
 	if strings.Contains(cleanPath, "..") {
-		utils.Warn("[VIEW] Path traversal attempt from %s: %s", r.RemoteAddr, path)
+		logger.Error("Path traversal attempt", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("path", path))
 		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid file path", "Path traversal detected")
 		return
 	}
 	absPath := filepath.Join("storage", cleanPath)
 	fileMeta, err := fileService.GetFileByPath(absPath)
 	if err != nil {
-		utils.Error("[VIEW] File not found for %s: %s", r.RemoteAddr, absPath)
+		logger.Error("File not found", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("path", absPath), zap.Error(err))
 		utils.WriteAPIError(w, http.StatusNotFound, "File not found", err.Error())
 		return
 	}
 	file, err := os.Open(fileMeta.Path)
 	if err != nil {
-		utils.Error("[VIEW] Failed to open file for %s: %s, error: %v", r.RemoteAddr, fileMeta.Path, err)
+		logger.Error("Failed to open file", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("path", fileMeta.Path), zap.Error(err))
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to open file", err.Error())
 		return
 	}
 	defer file.Close()
-	utils.Info("[VIEW] Serving file to %s: %s", r.RemoteAddr, fileMeta.Path)
+	logger.Info("Serving file", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("path", fileMeta.Path))
 	buffer := make([]byte, 512)
 	n, _ := file.Read(buffer)
 	contentType := http.DetectContentType(buffer[:n])
@@ -119,81 +247,48 @@ func ServeFileByPathViewHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} utils.APIError "Internal server error"
 // @Router /api/v1/file/upload [post]
 func FileUploadHandler(w http.ResponseWriter, r *http.Request) {
-	utils.Info("[UPLOAD] Request from %s", r.RemoteAddr)
+	requestID := r.Header.Get("X-Request-ID")
+	if requestID == "" {
+		requestID = "file-upload-" + fmt.Sprintf("%d", os.Getpid())
+	}
+	logger.Info("[UPLOAD] Request", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr))
 	err := r.ParseMultipartForm(10 << 20)
 	if err != nil {
-		utils.Warn("[UPLOAD] Failed to parse form from %s: %v", r.RemoteAddr, err)
+		logger.Error("Failed to parse form", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.Error(err))
 		utils.WriteAPIError(w, http.StatusBadRequest, "Failed to parse form", err.Error())
 		return
 	}
 	file, handler, err := r.FormFile("file")
 	if err != nil {
-		utils.Warn("[UPLOAD] File not found in request from %s: %v", r.RemoteAddr, err)
+		logger.Error("File not found in request", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.Error(err))
 		utils.WriteAPIError(w, http.StatusBadRequest, "File not found in request", err.Error())
 		return
 	}
 	defer file.Close()
-	buffer := make([]byte, 512)
-	_, err = file.Read(buffer)
-	if err != nil && err != io.EOF {
-		utils.Error("[UPLOAD] Failed to read file from %s: %v", r.RemoteAddr, err)
-		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to read file", err.Error())
-		return
-	}
-	filetype := http.DetectContentType(buffer)
-	declaredType := handler.Header.Get("Content-Type")
-	if !strings.HasPrefix(filetype, strings.Split(declaredType, "/")[0]) {
-		utils.Warn("[UPLOAD] MIME type mismatch from %s: declared=%s, actual=%s", r.RemoteAddr, declaredType, filetype)
-		utils.WriteAPIError(w, http.StatusBadRequest, "MIME type mismatch", fmt.Sprintf("Declared: %s, Actual: %s", declaredType, filetype))
-		return
-	}
-	if seeker, ok := file.(io.Seeker); ok {
-		seeker.Seek(0, io.SeekStart)
-	}
-	hash := sha256.New()
-	if seeker, ok := file.(io.Seeker); ok {
-		seeker.Seek(0, io.SeekStart)
-	}
-	_, err = io.Copy(hash, file)
+
+	// Use CoreUpload for modular upload logic
+	filename, mimetype, hash, path, err := servicesImpl.CoreUpload(file, handler.Filename, r)
 	if err != nil {
-		utils.Error("[UPLOAD] Failed to hash file from %s: %v", r.RemoteAddr, err)
-		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to hash file", err.Error())
+		logger.Error("Failed to upload file", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.Error(err))
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to upload file", err.Error())
 		return
 	}
-	hashSum := fmt.Sprintf("%x", hash.Sum(nil))
-	if seeker, ok := file.(io.Seeker); ok {
-		seeker.Seek(0, io.SeekStart)
-	}
-	isDuplicate, refID := fileService.CheckDuplicate(hashSum)
+	isDuplicate, refID := fileService.CheckDuplicate(hash)
 	if isDuplicate {
-		utils.Info("[UPLOAD] Duplicate file detected from %s: sha256=%s", r.RemoteAddr, hashSum)
+		logger.Info("Duplicate file detected", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("sha256", hash))
 		resp := map[string]interface{}{
 			"message":      "Duplicate file detected. Reference stored.",
 			"reference_id": refID,
-			"sha256":       hashSum,
+			"sha256":       hash,
 		}
 		utils.WriteAPIResponse(w, http.StatusOK, "Duplicate file", resp)
 		return
 	}
-	filePath := filepath.Join("storage", hashSum+"_"+handler.Filename)
-	out, err := os.Create(filePath)
-	if err != nil {
-		utils.Error("[UPLOAD] Failed to save file from %s: %v", r.RemoteAddr, err)
-		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to save file", err.Error())
-		return
-	}
-	defer out.Close()
-	_, err = io.Copy(out, file)
-	if err != nil {
-		utils.Error("[UPLOAD] Failed to write file from %s: %v", r.RemoteAddr, err)
-		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to write file", err.Error())
-		return
-	}
-	utils.Info("[UPLOAD] File uploaded successfully from %s: %s", r.RemoteAddr, filePath)
-	fileService.StoreFileMetadata(handler.Filename, filetype, hashSum, filePath, r)
+	fileService.StoreFileMetadata(filename, mimetype, hash, path, "")
+	logger.Info("File uploaded successfully", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("filePath", path))
 	resp := map[string]interface{}{
 		"message": "File uploaded successfully.",
-		"sha256":  hashSum,
+		"sha256":  hash,
 	}
 	utils.WriteAPIResponse(w, http.StatusCreated, "File uploaded", resp)
 }

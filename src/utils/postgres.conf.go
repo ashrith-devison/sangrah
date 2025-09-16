@@ -29,6 +29,8 @@ func ConnectPostgres() (*sql.DB, error) {
 
 func QueryRow(db *sql.DB, query string, scanDest []interface{}, args ...interface{}) error {
 	row := db.QueryRow(query, args...)
+	log.Printf("Executing QueryRow: %s with args: %v", query, args)
+	log.Print(row)
 	if err := row.Scan(scanDest...); err != nil {
 		log.Printf("QueryRow scan error: %v", err)
 		return err

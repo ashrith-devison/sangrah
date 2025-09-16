@@ -195,6 +195,26 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/file/storage/analytics": {
+            "get": {
+                "description": "Returns analytics: user count, file count, deduplication savings, etc.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "File storage analytics",
+                "responses": {
+                    "200": {
+                        "description": "Analytics data",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/file/upload": {
             "post": {
                 "description": "Uploads a file, validates MIME type, and deduplicates using SHA-256 hash. Returns reference if duplicate.",
@@ -232,6 +252,57 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad request or MIME type mismatch",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/file/upload-meta": {
+            "post": {
+                "description": "Accepts file and metadata, saves both to database",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "file"
+                ],
+                "summary": "Upload file with metadata",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "File to upload",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Uploader (username)",
+                        "name": "uploader",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "File and metadata uploaded",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
                         "schema": {
                             "$ref": "#/definitions/utils.APIError"
                         }

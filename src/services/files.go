@@ -1,21 +1,16 @@
 package services
 
-import "net/http"
+import (
+	"backend/src/dto"
+	"io"
+	"net/http"
+)
 
 // FileServiceInterface defines file-related operations for controllers
 
-type FileMeta struct {
-	Filename    string
-	MIMEType    string
-	SHA256      string
-	Path        string
-	Uploader    string
-	UploadDate  string
-	ReferenceID string
-}
-
 type FileServiceInterface interface {
 	CheckDuplicate(hash string) (bool, string)
-	StoreFileMetadata(filename, mimetype, hash, path string, r *http.Request)
-	GetFileByPath(path string) (FileMeta, error)
+	StoreFileMetadata(filename, mimetype, hash, path string, uploader string) error
+	GetFileByPath(path string) (dto.FileMeta, error)
+	CoreUpload(file io.ReadSeeker, filename string, r *http.Request) (string, string, string, string, error)
 }
