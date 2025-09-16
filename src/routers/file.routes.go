@@ -17,5 +17,10 @@ func RegisterFileRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/share", controllers.ShareFileHandler)              // POST /share
 	mux.HandleFunc("/shared/list", controllers.ListSharedFilesHandler)  // GET /shared/list?username=...
 	mux.HandleFunc("/share/revoke", controllers.RevokeFileShareHandler) // POST /share/revoke
+	mux.HandleFunc("/search", controllers.SearchFilesHandler)           // GET /search?filename=...&mimeType=...&minSize=...&maxSize=...&startDate=...&endDate=...&tags=...&uploader=...&limit=...&offset=...
+	mux.HandleFunc("/owned", controllers.OwnedFilesHandler)             // GET /owned?username=...
+
+	mux.HandleFunc("/rename", controllers.RenameFileHandler) // POST /rename
+	mux.HandleFunc("/delete", controllers.DeleteFileHandler) // POST /delete
 
 }

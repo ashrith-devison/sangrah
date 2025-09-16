@@ -36,6 +36,7 @@ func main() {
 
 	controllers.InitAuthService()
 	controllers.InitFileShareService()
+	controllers.InitFileSearchService()
 
 	port := os.Getenv("PORT")
 	if port == "" {

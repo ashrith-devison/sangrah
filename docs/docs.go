@@ -113,6 +113,102 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/file/delete": {
+            "post": {
+                "description": "Deletes a file owned by the user. Only the uploader can delete. Deduplication respected.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "file"
+                ],
+                "summary": "Delete a file",
+                "parameters": [
+                    {
+                        "description": "Delete file payload (fileId, username)",
+                        "name": "deleteRequest",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.DeleteFileRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "File deleted successfully",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "File not found or not owned",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/file/owned": {
+            "get": {
+                "description": "Returns files where the user has 'owner' permission",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "file"
+                ],
+                "summary": "List files owned by user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username to list owned files for",
+                        "name": "username",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of owned files",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.UserFile"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Missing username",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/file/path/download": {
             "get": {
                 "description": "Serves a file from storage by its path",
@@ -190,6 +286,140 @@ const docTemplate = `{
                         "description": "File not found",
                         "schema": {
                             "$ref": "#/definitions/utils.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/file/rename": {
+            "post": {
+                "description": "Renames a file owned by the user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "file"
+                ],
+                "summary": "Rename a file",
+                "parameters": [
+                    {
+                        "description": "Rename file payload",
+                        "name": "renameRequest",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.FileRenameRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "File renamed successfully",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "File not found or not owned",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/file/search": {
+            "get": {
+                "description": "Search and filter files by filename, MIME type, size, date, tags, uploader",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "file-search"
+                ],
+                "summary": "Search files",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filename to search",
+                        "name": "filename",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "MIME type filter",
+                        "name": "mimeType",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Minimum file size",
+                        "name": "minSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Maximum file size",
+                        "name": "maxSize",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start upload date",
+                        "name": "startDate",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End upload date",
+                        "name": "endDate",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Uploader's name",
+                        "name": "uploader",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Search results",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.FileMeta"
+                            }
                         }
                     }
                 }
@@ -448,6 +678,65 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "dto.DeleteFileRequest": {
+            "type": "object",
+            "properties": {
+                "fileId": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.FileMeta": {
+            "type": "object",
+            "properties": {
+                "fileSize": {
+                    "type": "number"
+                },
+                "filename": {
+                    "description": "The following fields are computed by handlers",
+                    "type": "string"
+                },
+                "mimeType": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "referenceCount": {
+                    "type": "integer"
+                },
+                "referenceID": {
+                    "type": "string"
+                },
+                "sha256": {
+                    "type": "string"
+                },
+                "uploadDate": {
+                    "type": "string"
+                },
+                "uploader": {
+                    "description": "Uploader is provided by user (username)",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.FileRenameRequest": {
+            "type": "object",
+            "properties": {
+                "fileId": {
+                    "type": "string"
+                },
+                "newName": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.FileShareRequest": {
             "type": "object",
             "properties": {

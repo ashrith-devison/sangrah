@@ -1,11 +1,13 @@
 package controllers
 
 import (
+	"backend/src/dto"
 	"backend/src/repos"
 	"backend/src/services"
 	servicesImpl "backend/src/servicesImpl"
 	"backend/src/utils"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -16,6 +18,131 @@ import (
 
 	"go.uber.org/zap"
 )
+
+// DeleteFileHandler deletes a file owned by the user with strict rules
+// @Summary Delete a file
+// @Description Deletes a file owned by the user. Only the uploader can delete. Deduplication respected.
+// @Tags file
+// @Accept json
+// @Produce json
+// @Param deleteRequest body dto.DeleteFileRequest true "Delete file payload (fileId, username)"
+// @Success 200 {object} utils.APIResponse "File deleted successfully"
+// @Failure 400 {object} utils.APIError "Invalid request"
+// @Failure 404 {object} utils.APIError "File not found or not owned"
+// @Failure 500 {object} utils.APIError "Internal server error"
+// @Router /api/v1/file/delete [post]
+func DeleteFileHandler(w http.ResponseWriter, r *http.Request) {
+	var req dto.DeleteFileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid request payload", err.Error())
+		return
+	}
+	if req.FileId == "" || req.Username == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "fileId, username required")
+		return
+	}
+	// Use service layer for deletion
+	userFileCrudService := servicesImpl.NewUserFileCrudService()
+	err := userFileCrudService.DeleteFile(req)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			utils.WriteAPIError(w, http.StatusNotFound, "File not found or not owned", "File not found or not owned by user")
+		} else {
+			utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to delete file", err.Error())
+		}
+		return
+	}
+	utils.WriteAPIResponse(w, http.StatusOK, "File deleted successfully", map[string]interface{}{"fileId": req.FileId})
+}
+
+// RenameFileHandler renames a file owned by the user
+// @Summary Rename a file
+// @Description Renames a file owned by the user
+// @Tags file
+// @Accept json
+// @Produce json
+// @Param renameRequest body dto.FileRenameRequest true "Rename file payload"
+// @Success 200 {object} utils.APIResponse "File renamed successfully"
+// @Failure 400 {object} utils.APIError "Invalid request"
+// @Failure 404 {object} utils.APIError "File not found or not owned"
+// @Failure 500 {object} utils.APIError "Internal server error"
+// @Router /api/v1/file/rename [post]
+func RenameFileHandler(w http.ResponseWriter, r *http.Request) {
+	var req dto.FileRenameRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid request payload", err.Error())
+		return
+	}
+	if req.FileID == "" || req.NewName == "" || req.Username == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "fileId, newName, username required")
+		return
+	}
+	db, err := utils.ConnectPostgres()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
+		return
+	}
+	defer db.Close()
+	fileCrudRepo := repos.FileCrudRepo{Db: db}
+	err = fileCrudRepo.RenameFile(req.FileID, req.NewName, req.Username)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			utils.WriteAPIError(w, http.StatusNotFound, "File not found or not owned", "File not found or not owned by user")
+		} else {
+			utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to rename file", err.Error())
+		}
+		return
+	}
+	utils.WriteAPIResponse(w, http.StatusOK, "File renamed successfully", map[string]interface{}{"fileId": req.FileID, "newName": req.NewName})
+}
+
+// OwnedFilesHandler returns files owned by the user (permission = 'owner')
+// @Summary List files owned by user
+// @Description Returns files where the user has 'owner' permission
+// @Tags file
+// @Produce json
+// @Param username query string true "Username to list owned files for"
+// @Success 200 {array} dto.UserFile "List of owned files"
+// @Failure 400 {object} utils.APIError "Missing username"
+// @Failure 500 {object} utils.APIError "Internal server error"
+// @Router /api/v1/file/owned [get]
+func OwnedFilesHandler(w http.ResponseWriter, r *http.Request) {
+	username := r.URL.Query().Get("username")
+	if username == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username required")
+		return
+	}
+	db, err := utils.ConnectPostgres()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
+		return
+	}
+	defer db.Close()
+	fileCrudRepo := repos.FileCrudRepo{Db: db}
+	rows, err := fileCrudRepo.Db.Query(`SELECT id, username, file_id, filename, permission FROM user_files WHERE username = $1 AND permission = 'owner'`, username)
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to fetch owned files", err.Error())
+		return
+	}
+	defer rows.Close()
+	var files []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var uname, fileId, filename, permission string
+		if err := rows.Scan(&id, &uname, &fileId, &filename, &permission); err != nil {
+			utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to scan row", err.Error())
+			return
+		}
+		files = append(files, map[string]interface{}{
+			"id":         id,
+			"username":   uname,
+			"fileId":     fileId,
+			"filename":   filename,
+			"permission": permission,
+		})
+	}
+	utils.WriteAPIResponse(w, http.StatusOK, "Owned files fetched", files)
+}
 
 // AnalyticsHandler serves analytics about file storage and uploads
 // @Summary File storage analytics
@@ -31,13 +158,18 @@ func AnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer db.Close()
+	fileCrudRepo := repos.FileCrudRepo{Db: db}
 	fileRepo := repos.NewFileRepo(db)
-	uniqueUploaders, logicalFiles, savedSize, err := fileRepo.GetFileAnalytics()
+	logicalFiles, uniqueUploaders, err := fileCrudRepo.GetLogicalFilesAndUniqueUploaders()
 	if err != nil {
-		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to fetch analytics", err.Error())
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to fetch logical files and uploaders", err.Error())
 		return
 	}
-
+	totalStorageBytes, spaceSavedBytes, err := fileRepo.GetDeduplicationStats()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to fetch deduplication stats", err.Error())
+		return
+	}
 	// Physical file count and size from storage dir
 	storageDir := "storage"
 	physicalFiles := 0
@@ -54,14 +186,14 @@ func AnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-
 	analytics := map[string]interface{}{
-		"unique_uploaders":    uniqueUploaders,
-		"physical_files":      physicalFiles,
-		"logical_files":       logicalFiles,
-		"total_storage_bytes": physicalSize,
-		"space_saved_bytes":   savedSize,
-		"space_saved_mb":      savedSize / (1024 * 1024),
+		"unique_uploaders":                     uniqueUploaders,
+		"logical_files":                        logicalFiles,
+		"physical_files":                       physicalFiles,
+		"total_storage_bytes":                  totalStorageBytes,
+		"total_physical_space_occupied(in Mb)": physicalSize / (1024 * 1024),
+		"space_saved_bytes":                    spaceSavedBytes,
+		"space_saved_mb":                       spaceSavedBytes / (1024 * 1024),
 	}
 	utils.WriteAPIResponse(w, http.StatusOK, "Storage analytics", analytics)
 }
@@ -126,7 +258,14 @@ func FileMetaUploadHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	logger.Info("File and metadata uploaded", zap.String("requestID", requestID), zap.String("filename", filename), zap.String("sha256", hash), zap.String("uploader", uploader))
+	// Insert original filename into user_files
+	db, dbErr := utils.ConnectPostgres()
+	if dbErr == nil {
+		defer db.Close()
+		fileCrudRepo := repos.FileCrudRepo{Db: db}
+		_ = fileCrudRepo.InsertUserFile(uploader, hash, handler.Filename, "owner")
+	}
+	logger.Info("File and metadata uploaded", zap.String("requestID", requestID), zap.String("filename", handler.Filename), zap.String("sha256", hash), zap.String("uploader", uploader))
 
 	resp := map[string]interface{}{
 		"message": "File and metadata uploaded successfully.",

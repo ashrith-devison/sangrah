@@ -35,6 +35,28 @@ func NewFileRepo(db *sql.DB) *FileRepo {
 	return &FileRepo{db: db}
 }
 
+// Analytics queries for deduplication and storage stats
+func (r *FileRepo) GetDeduplicationStats() (totalStorageBytes float64, spaceSavedBytes float64, err error) {
+	totalStorageBytes = 0
+	spaceSavedBytes = 0
+	rows, err := r.db.Query("SELECT reference_count, file_size FROM file_metadata")
+	if err != nil {
+		return 0, 0, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var referenceCount int
+		var fileSize float64
+		if err := rows.Scan(&referenceCount, &fileSize); err != nil {
+			return 0, 0, err
+		}
+		totalStorageBytes += fileSize
+		if referenceCount > 1 {
+			spaceSavedBytes += fileSize * float64(referenceCount-1)
+		}
+	}
+	return totalStorageBytes, spaceSavedBytes, nil
+}
 func (r *FileRepo) SaveFileMeta(meta dto.FileMeta) error {
 	// Check if uploader exists in users table (trim whitespace)
 	var uploaderExists bool
