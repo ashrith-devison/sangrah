@@ -14,6 +14,70 @@ A modern, production-grade backend built with Go, featuring:
 
 ---
 
+
+## Dependency Injection & Service Pattern
+
+This backend uses a clean dependency injection pattern for modularity and testability:
+
+```mermaid
+flowchart TD
+    subgraph Controllers
+        A[HTTP Request]
+        B[Controller]
+    end
+    subgraph Service Layer
+        C[Service Interface]
+        D[Service Implementation]
+    end
+    subgraph Data Layer
+        E[Repository]
+        F[(PostgreSQL)]
+    end
+    A --> B --> C
+    C --> D
+    D --> E
+    E --> F
+```
+
+- **Service Interfaces** (`src/services/`): Define business logic contracts (e.g., `FileServiceInterface`, `AuthServiceInterface`).
+- **Service Implementations** (`src/servicesImpl/`): Concrete logic, injected with dependencies (e.g., DB repos, config, logger).
+- **Controllers** (`src/controllers/`): Accept HTTP requests, depend only on service interfaces, not implementations.
+- **Repositories** (`src/repos/`): Encapsulate all database access, injected into services.
+
+### How Dependency Injection Works
+
+1. **Interfaces**: Each service exposes an interface in `services/`.
+2. **Implementations**: The actual logic lives in `servicesImpl/`, which takes dependencies (repos, config, etc.) as constructor arguments.
+3. **Controller Wiring**: Controllers declare their dependencies as interfaces, and are wired up with concrete implementations at startup.
+4. **Testing**: You can swap out real implementations for mocks in tests, since controllers only depend on interfaces.
+
+#### Example (File Upload)
+
+```go
+// services/file.go
+type FileServiceInterface interface {
+    UploadFile(file dto.FileUploadRequest) error
+}
+
+// servicesImpl/file.go
+type FileService struct {
+    repo *repos.FileRepo
+}
+func (s *FileService) UploadFile(file dto.FileUploadRequest) error {
+    // business logic
+}
+
+// controllers/file.controllers.go
+var fileService services.FileServiceInterface = &servicesImpl.FileService{repo: repos.NewFileRepo(db)}
+```
+
+#### Benefits
+- **Loose coupling**: Controllers don’t care about implementation details.
+- **Testability**: Swap in mocks for unit tests.
+- **Extensibility**: Add new service implementations without changing controllers.
+- **Single Responsibility**: Each layer has a clear purpose.
+
+---
 ## System Architecture
 
 ```mermaid
