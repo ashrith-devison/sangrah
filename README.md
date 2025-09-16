@@ -97,8 +97,111 @@ flowchart TD
     A --> B --> C --> F --> D --> E
 ```
 
----
 
+## System Design: Low-Level Design (LLD)
+
+### 1. Layered Architecture
+
+- **Controllers**: Handle HTTP requests, validate input, and call service interfaces.
+- **Services (Interfaces & Implementations)**: Business logic, orchestrate operations, enforce rules.
+- **Repositories**: Direct database access, CRUD operations, query building.
+- **DTOs**: Data transfer objects for request/response payloads.
+- **Utils**: Helpers for logging, config, error handling, JWT, etc.
+
+### 2. Key Components
+
+#### Controllers
+- `AuthController`
+- `FileController`
+- `LoggerController`
+
+#### Services
+- `AuthServiceInterface` / `AuthService`
+- `FileServiceInterface` / `FileService`
+
+#### Repositories
+- `AuthRepo`
+- `FileRepo`
+
+#### DTOs
+- `AuthDTO`
+- `FileUploadRequest`
+- `FileShareRequest`
+- `PublicShareRequest`
+
+#### Utils
+- `apiError.go`
+- `apiResponse.go`
+- `jwt.conf.go`
+- `postgres.conf.go`
+
+### 3. Data Flow Example: File Upload
+
+1. **Request**: User sends a file upload request to `/upload`.
+2. **Controller**: `FileController` receives the request, validates input.
+3. **Service**: Calls `FileService.UploadFile`, which:
+   - Validates uploader exists.
+   - Computes SHA256 hash for deduplication.
+   - Persists metadata via `FileRepo`.
+   - Stores file in storage.
+4. **Repository**: `FileRepo` inserts metadata into `file_metadata` table.
+5. **Response**: Controller returns success or error via standardized API response.
+
+### 4. Class/Struct Relationships
+
+```go
+// src/services/file.go
+type FileServiceInterface interface {
+    UploadFile(file dto.FileUploadRequest) error
+    // ...other methods
+}
+
+// src/servicesImpl/file.go
+type FileService struct {
+    repo *repos.FileRepo
+}
+func (s *FileService) UploadFile(file dto.FileUploadRequest) error {
+    // business logic
+}
+
+// src/controllers/file.controllers.go
+type FileController struct {
+    service services.FileServiceInterface
+}
+```
+
+### 5. Database Schema (File Metadata)
+
+```sql
+CREATE TABLE file_metadata (
+    id SERIAL PRIMARY KEY,
+    filename VARCHAR(255) NOT NULL,
+    mime_type VARCHAR(128) NOT NULL,
+    sha256 VARCHAR(64) NOT NULL,
+    path TEXT NOT NULL,
+    reference_id VARCHAR(64) NOT NULL,
+    reference_count INT DEFAULT 1,
+    file_size FLOAT NOT NULL
+);
+```
+
+### 6. Sequence Diagram (File Upload)
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Controller
+    participant Service
+    participant Repo
+    participant DB
+
+    User->>Controller: POST /upload (file, metadata)
+    Controller->>Service: UploadFile(request)
+    Service->>Repo: SaveMetadata(file)
+    Repo->>DB: INSERT INTO file_metadata
+    Service->>Service: Store file in storage
+    Controller-->>User: Success/Error response
+```
 
 
 ## Key Features
