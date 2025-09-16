@@ -195,6 +195,136 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/file/share": {
+            "post": {
+                "description": "Shares a file with a recipient, granting permission",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "file-share"
+                ],
+                "summary": "Share a file with another user",
+                "parameters": [
+                    {
+                        "description": "File share payload",
+                        "name": "shareRequest",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.FileShareRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "File shared successfully",
+                        "schema": {
+                            "$ref": "#/definitions/dto.FileShareResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.FileShareResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.FileShareResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/file/share/revoke": {
+            "post": {
+                "description": "Revokes sharing of a file for a recipient",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "file-share"
+                ],
+                "summary": "Revoke sharing of a file",
+                "parameters": [
+                    {
+                        "description": "Revoke share payload",
+                        "name": "revokeRequest",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.FileShareRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "File share revoked",
+                        "schema": {
+                            "$ref": "#/definitions/dto.FileShareResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/dto.FileShareResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.FileShareResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/file/shared/list": {
+            "get": {
+                "description": "Lists files shared with or by the specified username",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "file-share"
+                ],
+                "summary": "List files shared with/by a user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username to list shared files for",
+                        "name": "username",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of shared files",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.UserFile"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/dto.FileShareResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/file/storage/analytics": {
             "get": {
                 "description": "Returns analytics: user count, file count, deduplication savings, etc.",
@@ -318,6 +448,35 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "dto.FileShareRequest": {
+            "type": "object",
+            "properties": {
+                "fileId": {
+                    "type": "string"
+                },
+                "owner": {
+                    "type": "string"
+                },
+                "permission": {
+                    "description": "e.g., \"read\", \"write\"",
+                    "type": "string"
+                },
+                "recipient": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.FileShareResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
         "dto.LoginRequest": {
             "type": "object",
             "properties": {
@@ -336,6 +495,23 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "password": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.UserFile": {
+            "type": "object",
+            "properties": {
+                "fileId": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "permission": {
                     "type": "string"
                 },
                 "username": {

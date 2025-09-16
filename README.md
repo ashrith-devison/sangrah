@@ -36,6 +36,7 @@ flowchart TD
 ---
 
 
+
 ## Key Features
 
 - **Authentication**: Register & login endpoints with JWT issuance
@@ -43,10 +44,11 @@ flowchart TD
 - **Service Implementation**: All business logic in `servicesImpl/`, interfaces in `services/`, used by controllers
 - **File Upload**: Modular file upload, SHA256-named files, metadata stored in DB
 - **File Metadata**: Uses a `FileRepo` struct and interface for DB operations, following the same pattern as authentication
+- **Uploader Validation**: File uploads require the uploader to exist in the users table. Uploader checks are case-insensitive and trimmed of whitespace for reliability.
 - **Analytics**: Storage analytics endpoint aggregates file counts and deduplication savings using `reference_id` and `reference_count` from the metadata table
 - **Config Loader**: Viper-based, loads from .env and environment
 - **Logging**: Zap logger with request ID for traceability
-- **Error Handling**: Proper HTTP status codes (409 for conflicts, etc.)
+- **Error Handling**: Proper HTTP status codes (400 for bad request, 409 for conflicts, etc.)
 - **API Docs**: Swagger UI at `/api/docs/`
 
 ---

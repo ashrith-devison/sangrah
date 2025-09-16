@@ -35,6 +35,7 @@ func main() {
 	logger.Info("Loaded DB_URL", zap.String("DB_URL", cfg.DBUrl))
 
 	controllers.InitAuthService()
+	controllers.InitFileShareService()
 
 	port := os.Getenv("PORT")
 	if port == "" {

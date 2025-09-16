@@ -13,4 +13,9 @@ func RegisterFileRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/upload-meta", controllers.FileMetaUploadHandler)    // POST /api/v1/file/upload-meta
 	mux.HandleFunc("/storage/analytics", controllers.AnalyticsHandler)   // GET /storage/analytics
 
+	// File sharing endpoints
+	mux.HandleFunc("/share", controllers.ShareFileHandler)              // POST /share
+	mux.HandleFunc("/shared/list", controllers.ListSharedFilesHandler)  // GET /shared/list?username=...
+	mux.HandleFunc("/share/revoke", controllers.RevokeFileShareHandler) // POST /share/revoke
+
 }
