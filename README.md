@@ -210,13 +210,14 @@ sequenceDiagram
 - **Interfaces**: Service & repository interfaces for testability
 - **Service Implementation**: All business logic in `servicesImpl/`, interfaces in `services/`, used by controllers
 - **File Upload**: Modular file upload, SHA256-named files, metadata stored in DB
-- **File Metadata**: Uses a `FileRepo` struct and interface for DB operations, following the same pattern as authentication
-- **Uploader Validation**: File uploads require the uploader to exist in the users table. Uploader checks are case-insensitive and trimmed of whitespace for reliability.
-- **Analytics**: Storage analytics endpoint aggregates file counts and deduplication savings using `reference_id` and `reference_count` from the metadata table
-- **Config Loader**: Viper-based, loads from .env and environment
-- **Logging**: Zap logger with request ID for traceability
-- **Error Handling**: Proper HTTP status codes (400 for bad request, 409 for conflicts, etc.)
-- **API Docs**: Swagger UI at `/api/docs/`
+**File Metadata**: Uses a `FileRepo` struct and interface for DB operations, following the same pattern as authentication
+**Uploader Validation**: File uploads require the uploader to exist in the users table. Uploader checks are case-insensitive and trimmed of whitespace for reliability.
+**Public Sharing**: Files can be shared publicly via a generated token and link. When a file is made public, the `is_public` flag in the `user_files` table is set to `true` for that file and user, making it discoverable as public.
+**Analytics**: Storage analytics endpoint aggregates file counts and deduplication savings using `reference_id` and `reference_count` from the metadata table
+**Config Loader**: Viper-based, loads from .env and environment
+**Logging**: Zap logger with request ID for traceability
+**Error Handling**: Proper HTTP status codes (400 for bad request, 409 for conflicts, etc.)
+**API Docs**: Swagger UI at `/api/docs/`
 
 ---
 
@@ -235,8 +236,54 @@ sequenceDiagram
     ```
 4. **Access API docs**: [http://localhost:8080/api/docs/](http://localhost:8080/api/docs/)
 
----
 
+## Folder Structure
+
+```
+backend/
+├── main.go
+├── docker-compose.yaml
+├── Dockerfile
+├── go.mod
+├── src/
+│   ├── controllers/      # HTTP handlers only
+│   ├── dto/              # Data transfer objects
+│   ├── repos/            # DB access logic
+│   ├── routers/          # Route registration
+│   ├── services/         # Service interfaces (business logic contracts)
+│   ├── servicesImpl/     # Service implementations (actual logic)
+│   └── utils/            # Helpers, config, logging
+├── storage/              # Deduplicated file storage (SHA256-named files)
+├── tmp/                  # Temporary files (uploads, processing)
+└── docs/                 # API docs, Swagger, etc.
+```
+
+## System Architecture
+
+```mermaid
+flowchart TD
+    subgraph API Layer
+        A[HTTP Request]
+        B[Controllers]
+    end
+    subgraph Business Logic
+        C[Service Interfaces]
+        F[Service Implementations]
+        G[Storage Service]
+    end
+    subgraph Data Layer
+        D[Repositories]
+        E[(PostgreSQL)]
+        H[File Storage]
+    end
+    A --> B --> C --> F
+    F --> D
+    F --> G
+    D --> E
+    G --> H
+```
+* The Storage Service layer handles all file operations (save, retrieve, delete) and abstracts physical storage from business logic.
+* Public sharing and deduplication are managed at the service and repo layers, with metadata and flags in the database.
 ## Folder Structure
 
 ```
@@ -271,6 +318,10 @@ backend/
 - `POST /upload-meta` — Upload file with metadata
 - `GET /path/download?path=...` — Download file by path
 - `GET /path/view?path=...` — View file inline in browser
+
+### Public Sharing
+- `POST /public-share` — Share a file publicly, generates a token and public link. Also sets `is_public=true` for the file in `user_files`.
+- `GET /public/view?token=...` — Access a publicly shared file via token.
 
 ### Analytics
 - `GET /file/storage/analytics` — Get storage analytics (unique files, deduplication savings, etc.)
