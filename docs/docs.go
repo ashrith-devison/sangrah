@@ -291,6 +291,58 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/file/public-share": {
+            "post": {
+                "description": "Generates a public link for a file or folder, accessible to anyone with the link",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "file"
+                ],
+                "summary": "Share file or folder publicly",
+                "parameters": [
+                    {
+                        "description": "Public share payload (fileId/folderId, isFolder, username)",
+                        "name": "shareRequest",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.PublicShareRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Public share link generated",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PublicShareResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "File/Folder not found or not owned",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/file/rename": {
             "post": {
                 "description": "Renames a file owned by the user",
@@ -773,6 +825,28 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.PublicShareRequest": {
+            "type": "object",
+            "properties": {
+                "fileId": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.PublicShareResponse": {
+            "type": "object",
+            "properties": {
+                "publicUrl": {
+                    "type": "string"
+                },
+                "token": {
                     "type": "string"
                 }
             }

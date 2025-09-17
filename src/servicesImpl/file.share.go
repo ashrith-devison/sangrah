@@ -39,3 +39,38 @@ func (s *FileShareService) ListSharedFiles(username string) ([]dto.UserFile, err
 func (s *FileShareService) RevokeFileShare(owner string, fileId string, recipient string) error {
 	return s.repo.RevokeFileShare(owner, fileId, recipient)
 }
+
+// --- Public Share Service ---
+
+type PublicShareService struct {
+	repo *repos.FileShareRepo // You may want a dedicated repo for public shares
+}
+
+func NewPublicShareService() *PublicShareService {
+	db, err := utils.ConnectPostgres()
+	if err != nil {
+		panic("Failed to connect to DB: " + err.Error())
+	}
+	repo := repos.NewFileShareRepo(db)
+	return &PublicShareService{repo: repo}
+}
+
+// SharePublicly generates a token and persists mapping
+func (s *PublicShareService) SharePublicly(req dto.PublicShareRequest) (dto.PublicShareResponse, error) {
+	// Generate a random token (for demo, use fileId + username + timestamp)
+	token := utils.GeneratePublicToken(req.FileId, req.Username)
+	// Persist mapping (implement repo logic as needed)
+	err := s.repo.SavePublicShare(token, req.FileId, req.Username)
+	if err != nil {
+		return dto.PublicShareResponse{}, err
+	}
+	// Update is_public flag in user_files
+	_ = s.repo.SetFilePublic(req.FileId, req.Username)
+	publicUrl := "http://localhost:8080/api/v1/file/path/view?token=" + token
+	return dto.PublicShareResponse{PublicUrl: publicUrl, Token: token}, nil
+}
+
+// ResolveToken returns file metadata for a given token
+func (s *PublicShareService) ResolveToken(token string) (dto.FileMeta, error) {
+	return s.repo.GetFileMetaByToken(token)
+}

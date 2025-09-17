@@ -19,6 +19,83 @@ import (
 	"go.uber.org/zap"
 )
 
+// PublicShareHandler shares a file or folder publicly, generating a public link
+// @Summary Share file or folder publicly
+// @Description Generates a public link for a file or folder, accessible to anyone with the link
+// @Tags file
+// @Accept json
+// @Produce json
+// @Param shareRequest body dto.PublicShareRequest true "Public share payload (fileId/folderId, isFolder, username)"
+// @Success 200 {object} dto.PublicShareResponse "Public share link generated"
+// @Failure 400 {object} utils.APIError "Invalid request"
+// @Failure 404 {object} utils.APIError "File/Folder not found or not owned"
+// @Failure 500 {object} utils.APIError "Internal server error"
+// @Router /api/v1/file/public-share [post]
+func PublicShareHandler(w http.ResponseWriter, r *http.Request) {
+	var req dto.PublicShareRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid request payload", err.Error())
+		return
+	}
+	if req.FileId == "" || req.Username == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "fileId/folderId, username required")
+		return
+	}
+	// Call service to generate public token and persist mapping
+	publicShareService := servicesImpl.NewPublicShareService()
+	resp, err := publicShareService.SharePublicly(req)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			utils.WriteAPIError(w, http.StatusNotFound, "File/Folder not found or not owned", "File/Folder not found or not owned by user")
+		} else {
+			utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to share publicly", err.Error())
+		}
+		return
+	}
+	utils.WriteAPIResponse(w, http.StatusOK, "Public share link generated", resp)
+}
+
+// PublicAccessHandler serves a file or folder for public access via token
+// @Summary Access shared file/folder via public link
+// @Description Serves a file or folder for public access using a token
+// @Tags file
+// @Produce */*
+// @Param token query string true "Public share token"
+// @Success 200 {file} file "File/Folder served for viewing"
+// @Failure 400 {object} utils.APIError "Missing or invalid token"
+// @Failure 404 {object} utils.APIError "File/Folder not found"
+// @Router /api/v1/file/path/view [get]
+func PublicAccessHandler(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing token", "No token provided")
+		return
+	}
+	publicShareService := servicesImpl.NewPublicShareService()
+	fileMeta, err := publicShareService.ResolveToken(token)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			utils.WriteAPIError(w, http.StatusNotFound, "File/Folder not found", "Invalid or expired token")
+		} else {
+			utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to resolve token", err.Error())
+		}
+		return
+	}
+	log.Print(fileMeta)
+	// Use storage service for file retrieval
+	storageService := servicesImpl.NewStorageService("storage")
+	file, err := storageService.GetFile(filepath.Base(fileMeta.Path))
+	if err != nil {
+		log.Printf("[PublicAccessHandler] Failed to open file: %s, error: %v", fileMeta.Path, err)
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to open file", err.Error())
+		return
+	}
+	defer file.Close()
+	w.Header().Set("Content-Disposition", "inline; filename="+filepath.Base(fileMeta.Path))
+	w.Header().Set("Content-Type", fileMeta.MIMEType)
+	io.Copy(w, file)
+}
+
 // DeleteFileHandler deletes a file owned by the user with strict rules
 // @Summary Delete a file
 // @Description Deletes a file owned by the user. Only the uploader can delete. Deduplication respected.
@@ -240,15 +317,15 @@ func FileMetaUploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Use CoreUpload for modular upload logic
-	filename, mimetype, hash, path, err := servicesImpl.CoreUpload(file, handler.Filename, r)
+	// Use CoreUpload for modular upload logic (deduplication, metadata, and saving)
+	filename, mimetype, hash, savedPath, err := servicesImpl.CoreUpload(file, handler.Filename, r)
 	if err != nil {
 		logger.Error("Failed to upload file", zap.String("requestID", requestID), zap.Error(err))
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to upload file", err.Error())
 		return
 	}
 	log.Print(uploader)
-	err = fileService.StoreFileMetadata(filename, mimetype, hash, path, uploader)
+	err = fileService.StoreFileMetadata(filename, mimetype, hash, savedPath, uploader)
 	if err != nil {
 		logger.Error("Failed to save file metadata", zap.String("requestID", requestID), zap.Error(err))
 		if err == sql.ErrNoRows {
@@ -343,6 +420,7 @@ func ServeFileByPathViewHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Missing file path", "No path provided")
 		return
 	}
+
 	cleanPath := filepath.Clean(path)
 	if strings.Contains(cleanPath, "..") {
 		logger.Error("Path traversal attempt", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("path", path))
@@ -356,7 +434,9 @@ func ServeFileByPathViewHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusNotFound, "File not found", err.Error())
 		return
 	}
-	file, err := os.Open(fileMeta.Path)
+	// Use StorageService for file retrieval
+	storageService := servicesImpl.NewStorageService("storage")
+	file, err := storageService.GetFile(filepath.Base(fileMeta.Path))
 	if err != nil {
 		logger.Error("Failed to open file", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("path", fileMeta.Path), zap.Error(err))
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to open file", err.Error())
@@ -369,7 +449,9 @@ func ServeFileByPathViewHandler(w http.ResponseWriter, r *http.Request) {
 	contentType := http.DetectContentType(buffer[:n])
 	w.Header().Set("Content-Disposition", "inline; filename="+filepath.Base(cleanPath))
 	w.Header().Set("Content-Type", contentType)
-	file.Seek(0, io.SeekStart)
+	if seeker, ok := file.(io.Seeker); ok {
+		seeker.Seek(0, io.SeekStart)
+	}
 	io.Copy(w, file)
 }
 
@@ -405,8 +487,8 @@ func FileUploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Use CoreUpload for modular upload logic
-	filename, mimetype, hash, path, err := servicesImpl.CoreUpload(file, handler.Filename, r)
+	// Use CoreUpload for modular upload logic (deduplication, metadata, and saving)
+	filename, mimetype, hash, savedPath, err := servicesImpl.CoreUpload(file, handler.Filename, r)
 	if err != nil {
 		logger.Error("Failed to upload file", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.Error(err))
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to upload file", err.Error())
@@ -423,8 +505,8 @@ func FileUploadHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIResponse(w, http.StatusOK, "Duplicate file", resp)
 		return
 	}
-	fileService.StoreFileMetadata(filename, mimetype, hash, path, "")
-	logger.Info("File uploaded successfully", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("filePath", path))
+	fileService.StoreFileMetadata(filename, mimetype, hash, savedPath, "")
+	logger.Info("File uploaded successfully", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("filePath", savedPath))
 	resp := map[string]interface{}{
 		"message": "File uploaded successfully.",
 		"sha256":  hash,
