@@ -1,6 +1,4 @@
 # Ignore local development files and secrets
-.env
-.env.*
 
 # Ignore build artifacts
 main.exe

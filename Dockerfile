@@ -10,6 +10,6 @@ RUN go build -o filevault-backend main.go
 FROM alpine:latest
 WORKDIR /app
 COPY --from=builder /app/filevault-backend .
+COPY .env.prod .env
 EXPOSE 8080
-ENV PORT=8080
 CMD ["./filevault-backend"]

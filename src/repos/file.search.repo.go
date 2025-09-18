@@ -25,41 +25,60 @@ func (r *FileSearchRepo) SearchFiles(params dto.FileSearchParams) ([]dto.FileMet
 	idx := 1
 
 	if params.Filename != "" {
-		filters = append(filters, fmt.Sprintf("filename ILIKE '%%' || $%d || '%%'", idx))
+		filters = append(filters, fmt.Sprintf("uf.filename ILIKE '%%' || $%d || '%%'", idx))
 		args = append(args, params.Filename)
 		idx++
 	}
 	if params.MimeType != "" {
-		filters = append(filters, fmt.Sprintf("mime_type = $%d", idx))
+		filters = append(filters, fmt.Sprintf("fm.mime_type = $%d", idx))
 		args = append(args, params.MimeType)
 		idx++
 	}
 	if params.MinSize > 0 {
-		filters = append(filters, fmt.Sprintf("file_size >= $%d", idx))
+		filters = append(filters, fmt.Sprintf("fm.file_size >= $%d", idx))
 		args = append(args, params.MinSize)
 		idx++
 	}
 	if params.MaxSize > 0 {
-		filters = append(filters, fmt.Sprintf("file_size <= $%d", idx))
+		filters = append(filters, fmt.Sprintf("fm.file_size <= $%d", idx))
 		args = append(args, params.MaxSize)
 		idx++
 	}
 	if params.StartDate != "" {
-		filters = append(filters, fmt.Sprintf("upload_date >= $%d", idx))
+		filters = append(filters, fmt.Sprintf("uf.created_at >= $%d", idx))
 		args = append(args, params.StartDate)
 		idx++
 	}
 	if params.EndDate != "" {
-		filters = append(filters, fmt.Sprintf("upload_date <= $%d", idx))
+		filters = append(filters, fmt.Sprintf("uf.created_at <= $%d", idx))
 		args = append(args, params.EndDate)
+		idx++
+	}
+	if params.Uploader != "" {
+		filters = append(filters, fmt.Sprintf("uf.username = $%d", idx))
+		args = append(args, params.Uploader)
 		idx++
 	}
 	where := ""
 	if len(filters) > 0 {
 		where = "WHERE " + strings.Join(filters, " AND ")
 	}
-	query := fmt.Sprintf("SELECT filename, mime_type, sha256, path, reference_id, reference_count, file_size FROM file_metadata %s LIMIT $%d OFFSET $%d", where, idx, idx+1)
-	args = append(args, params.Limit, params.Offset)
+
+	// Handle limit and offset
+	limitClause := ""
+	if params.Limit > 0 {
+		limitClause = fmt.Sprintf(" LIMIT $%d", idx)
+		args = append(args, params.Limit)
+		idx++
+	}
+	offsetClause := ""
+	if params.Offset > 0 {
+		offsetClause = fmt.Sprintf(" OFFSET $%d", idx)
+		args = append(args, params.Offset)
+		idx++
+	}
+
+	query := fmt.Sprintf("SELECT uf.filename, fm.mime_type, fm.sha256, fm.path, fm.reference_id, fm.reference_count, fm.file_size, uf.created_at, uf.username FROM file_metadata fm JOIN user_files uf ON fm.sha256 = uf.file_id %s ORDER BY uf.created_at DESC%s%s", where, limitClause, offsetClause)
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
@@ -69,7 +88,7 @@ func (r *FileSearchRepo) SearchFiles(params dto.FileSearchParams) ([]dto.FileMet
 	var results []dto.FileMeta
 	for rows.Next() {
 		var meta dto.FileMeta
-		if err := rows.Scan(&meta.Filename, &meta.MIMEType, &meta.SHA256, &meta.Path, &meta.ReferenceID, &meta.ReferenceCount, &meta.FileSize); err != nil {
+		if err := rows.Scan(&meta.Filename, &meta.MIMEType, &meta.SHA256, &meta.Path, &meta.ReferenceID, &meta.ReferenceCount, &meta.FileSize, &meta.UploadDate, &meta.Uploader); err != nil {
 			return nil, err
 		}
 		results = append(results, meta)

@@ -21,3 +21,14 @@ type DeleteFileRequest struct {
 	FileId   string `json:"fileId"`
 	Username string `json:"username"`
 }
+
+// Public Share DTOs
+type PublicShareRequest struct {
+	FileId   string `json:"fileId"`
+	Username string `json:"username"`
+}
+
+type PublicShareResponse struct {
+	PublicUrl string `json:"publicUrl"`
+	Token     string `json:"token"`
+}

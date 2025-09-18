@@ -37,6 +37,7 @@ func main() {
 	controllers.InitAuthService()
 	controllers.InitFileShareService()
 	controllers.InitFileSearchService()
+	controllers.InitAdminService()
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -53,6 +54,11 @@ func main() {
 	fileMux := http.NewServeMux()
 	routers.RegisterFileRoutes(fileMux)
 	mux.Handle("/api/v1/file/", http.StripPrefix("/api/v1/file", fileMux))
+
+	// Register admin routes
+	adminMux := http.NewServeMux()
+	routers.RegisterAdminRoutes(adminMux)
+	mux.Handle("/api/v1/admin/", http.StripPrefix("/api/v1/admin", adminMux))
 
 	server := &http.Server{
 		Addr:         ":" + port,

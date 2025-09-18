@@ -23,4 +23,8 @@ func RegisterFileRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/rename", controllers.RenameFileHandler) // POST /rename
 	mux.HandleFunc("/delete", controllers.DeleteFileHandler) // POST /delete
 
+	// Public share endpoints
+	mux.HandleFunc("/public-share", controllers.PublicShareHandler) // POST /public-share
+	mux.HandleFunc("/public/view", controllers.PublicAccessHandler) // GET /public/view?token=...
+
 }

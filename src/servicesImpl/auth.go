@@ -37,7 +37,7 @@ func (s *AuthService) RegisterUser(req dto.RegisterRequest, logger *zap.Logger, 
 		logger.Warn("Username already taken", zap.String("requestID", requestID), zap.String("username", req.Username))
 		return dto.RegisterResponse{}, errors.New("username already taken")
 	}
-	userID, username, email, message, err := s.repo.RegisterUser(req.Username, req.Email, req.Password)
+	userID, username, email, err := s.repo.RegisterUser(req.Username, req.Email, req.Password)
 	if err != nil {
 		// Check for duplicate email error
 		if err.Error() == "failed to register user" {
@@ -47,7 +47,7 @@ func (s *AuthService) RegisterUser(req dto.RegisterRequest, logger *zap.Logger, 
 		logger.Error("Failed to register user", zap.String("requestID", requestID), zap.Error(err))
 		return dto.RegisterResponse{}, err
 	}
-	logger.Info("Registered new user", zap.String("requestID", requestID), zap.String("userID", userID), zap.String("username", username), zap.String("email", email), zap.String("message", message))
+	logger.Info("Registered new user", zap.String("requestID", requestID), zap.String("userID", userID), zap.String("username", username), zap.String("email", email))
 	return dto.RegisterResponse{
 		Username: username,
 		Email:    email,
@@ -55,7 +55,7 @@ func (s *AuthService) RegisterUser(req dto.RegisterRequest, logger *zap.Logger, 
 }
 
 func (s *AuthService) LoginUser(req dto.LoginRequest, logger *zap.Logger, requestID string) (dto.LoginResponse, error) {
-	userID, hashedPassword, err := s.repo.GetUserByEmail(req.Email)
+	username, hashedPassword, isAdminStr, err := s.repo.GetUserByEmail(req.Email)
 	if err != nil {
 		logger.Error("Invalid credentials (user not found)", zap.String("requestID", requestID), zap.Error(err))
 		return dto.LoginResponse{}, errors.New("invalid credentials")
@@ -64,11 +64,12 @@ func (s *AuthService) LoginUser(req dto.LoginRequest, logger *zap.Logger, reques
 		logger.Error("Invalid credentials (password)", zap.String("requestID", requestID), zap.Error(err))
 		return dto.LoginResponse{}, errors.New("invalid credentials")
 	}
-	token, err := utils.GenerateJWT(userID, req.Email)
+	isAdmin := isAdminStr == "true"
+	token, err := utils.GenerateJWT(username, req.Email, isAdmin)
 	if err != nil {
 		logger.Error("Failed to generate token", zap.String("requestID", requestID), zap.Error(err))
 		return dto.LoginResponse{}, errors.New("failed to generate token")
 	}
-	logger.Info("Login successful", zap.String("requestID", requestID), zap.String("userID", userID), zap.String("email", req.Email))
+	logger.Info("Login successful", zap.String("requestID", requestID), zap.String("username", username), zap.String("email", req.Email))
 	return dto.LoginResponse{Token: token}, nil
 }

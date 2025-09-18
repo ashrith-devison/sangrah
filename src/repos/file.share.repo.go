@@ -15,6 +15,13 @@ type FileShareRepository interface {
 	RevokeFileShare(owner string, fileId string, recipient string) error
 }
 
+// SetFilePublic updates is_public flag for a file and user
+func (r *FileShareRepo) SetFilePublic(fileId, username string) error {
+	query := `UPDATE user_files SET is_public = true WHERE file_id = $1 AND username = $2`
+	_, err := r.db.Exec(query, fileId, username)
+	return err
+}
+
 func NewFileShareRepo(db *sql.DB) *FileShareRepo {
 	return &FileShareRepo{db: db}
 }
@@ -52,4 +59,26 @@ func (r *FileShareRepo) RevokeFileShare(owner string, fileId string, recipient s
 	query := `DELETE FROM user_files WHERE username = $1 AND file_id = $2`
 	_, err := r.db.Exec(query, recipient, fileId)
 	return err
+}
+
+// SavePublicShare persists the public share token mapping
+func (r *FileShareRepo) SavePublicShare(token, fileId, username string) error {
+	query := `INSERT INTO public_shares (token, file_id, username) VALUES ($1, $2, $3)`
+	_, err := r.db.Exec(query, token, fileId, username)
+	return err
+}
+
+// GetFileMetaByToken retrieves file metadata for a given public share token
+func (r *FileShareRepo) GetFileMetaByToken(token string) (dto.FileMeta, error) {
+	query := `SELECT fm.filename, fm.mime_type, fm.sha256, fm.path, fm.reference_id, fm.reference_count, fm.file_size
+			  FROM public_shares ps
+			  JOIN file_metadata fm ON ps.file_id = fm.sha256
+			  WHERE ps.token = $1`
+	row := r.db.QueryRow(query, token)
+	var meta dto.FileMeta
+	err := row.Scan(&meta.Filename, &meta.MIMEType, &meta.SHA256, &meta.Path, &meta.ReferenceID, &meta.ReferenceCount, &meta.FileSize)
+	if err != nil {
+		return dto.FileMeta{}, err
+	}
+	return meta, nil
 }

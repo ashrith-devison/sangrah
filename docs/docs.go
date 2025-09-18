@@ -15,6 +15,140 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/v1/admin/files": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves all files with uploader details (admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "List all files",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.AdminFileListResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/share": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Allows admins to share files with users",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Admin share file",
+                "parameters": [
+                    {
+                        "description": "File share details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.AdminShareRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.FileShareResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves overall usage statistics (admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Get usage stats",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.AdminStatsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/upload": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Allows admins to upload files on behalf of users",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Admin upload file",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "File to upload",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Uploader (username)",
+                        "name": "uploader",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/auth/login": {
             "post": {
                 "description": "Authenticates user and returns JWT token",
@@ -291,6 +425,58 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/file/public-share": {
+            "post": {
+                "description": "Generates a public link for a file or folder, accessible to anyone with the link",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "file"
+                ],
+                "summary": "Share file or folder publicly",
+                "parameters": [
+                    {
+                        "description": "Public share payload (fileId/folderId, isFolder, username)",
+                        "name": "shareRequest",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.PublicShareRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Public share link generated",
+                        "schema": {
+                            "$ref": "#/definitions/dto.PublicShareResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "File/Folder not found or not owned",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/file/rename": {
             "post": {
                 "description": "Renames a file owned by the user",
@@ -416,10 +602,22 @@ const docTemplate = `{
                     "200": {
                         "description": "Search results",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/dto.FileMeta"
-                            }
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/dto.FileMeta"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -678,6 +876,76 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "dto.AdminFile": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "downloadCount": {
+                    "type": "integer"
+                },
+                "fileSize": {
+                    "type": "number"
+                },
+                "filename": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "mimeType": {
+                    "type": "string"
+                },
+                "uploader": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.AdminFileListResponse": {
+            "type": "object",
+            "properties": {
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.AdminFile"
+                    }
+                }
+            }
+        },
+        "dto.AdminShareRequest": {
+            "type": "object",
+            "properties": {
+                "fileId": {
+                    "type": "string"
+                },
+                "permission": {
+                    "description": "e.g., \"viewer\", \"editor\"",
+                    "type": "string"
+                },
+                "shareWith": {
+                    "description": "Username to share with",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.AdminStatsResponse": {
+            "type": "object",
+            "properties": {
+                "totalDownloads": {
+                    "type": "integer"
+                },
+                "totalFiles": {
+                    "type": "integer"
+                },
+                "totalStorageUsed": {
+                    "type": "integer"
+                },
+                "totalUsers": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.DeleteFileRequest": {
             "type": "object",
             "properties": {
@@ -773,6 +1041,28 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.PublicShareRequest": {
+            "type": "object",
+            "properties": {
+                "fileId": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.PublicShareResponse": {
+            "type": "object",
+            "properties": {
+                "publicUrl": {
+                    "type": "string"
+                },
+                "token": {
                     "type": "string"
                 }
             }

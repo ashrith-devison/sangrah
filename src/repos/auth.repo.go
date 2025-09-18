@@ -15,8 +15,8 @@ type AuthRepo struct {
 
 type AuthRepository interface {
 	IsUsernameTaken(username string) (bool, error)
-	RegisterUser(username, email, password string) (string, string, string, string, error)
-	GetUserByEmail(email string) (string, string, error)
+	RegisterUser(username, email, password string) (string, string, string, error)
+	GetUserByEmail(email string) (string, string, string, error) // userID, hashedPassword, is_admin
 	VerifyPassword(hashedPassword, password string) error
 }
 
@@ -30,28 +30,32 @@ func (r *AuthRepo) IsUsernameTaken(username string) (bool, error) {
 	return exists, err
 }
 
-func (r *AuthRepo) RegisterUser(username, email, password string) (string, string, string, string, error) {
+func (r *AuthRepo) RegisterUser(username, email, password string) (string, string, string, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return "", "", "", "", errors.New("failed to hash password")
+		return "", "", "", errors.New("failed to hash password")
 	}
-	query := `INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id`
-	var userID string
-	err = utils.QueryRow(r.db, query, []interface{}{&userID}, username, email, string(hashedPassword))
+	isAdmin := false
+	if email == "admin@example.com" { // Hardcode admin for demo
+		isAdmin = true
+	}
+	query := `INSERT INTO users (username, email, password, is_admin) VALUES ($1, $2, $3, $4)`
+	_, err = r.db.Exec(query, username, email, string(hashedPassword), isAdmin)
 	if err != nil {
-		return "", "", "", "", errors.New("failed to register user")
+		return "", "", "", errors.New("failed to register user")
 	}
-	return userID, username, email, "User registered successfully", nil
+	return username, username, email, nil
 }
 
-func (r *AuthRepo) GetUserByEmail(email string) (string, string, error) {
-	query := `SELECT id, password FROM users WHERE email = $1`
-	var userID, hashedPassword string
-	err := utils.QueryRow(r.db, query, []interface{}{&userID, &hashedPassword}, email)
+func (r *AuthRepo) GetUserByEmail(email string) (string, string, string, error) {
+	query := `SELECT username, password, is_admin FROM users WHERE email = $1`
+	var username, hashedPassword string
+	var isAdmin string
+	err := utils.QueryRow(r.db, query, []interface{}{&username, &hashedPassword, &isAdmin}, email)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
-	return userID, hashedPassword, nil
+	return username, hashedPassword, isAdmin, nil
 }
 
 func (r *AuthRepo) VerifyPassword(hashedPassword, password string) error {

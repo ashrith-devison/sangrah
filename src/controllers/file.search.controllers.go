@@ -2,8 +2,8 @@ package controllers
 
 import (
 	"backend/src/dto"
-	servicesImpl "backend/src/servicesImpl"
-	"encoding/json"
+	"backend/src/servicesImpl"
+	"backend/src/utils"
 	"net/http"
 	"strconv"
 
@@ -31,13 +31,15 @@ func InitFileSearchService() {
 // @Param uploader query string false "Uploader's name"
 // @Param limit query int false "Limit"
 // @Param offset query int false "Offset"
-// @Success 200 {array} dto.FileMeta "Search results"
+// @Success 200 {object} utils.APIResponse{data=[]dto.FileMeta} "Search results"
 // @Router /api/v1/file/search [get]
 func SearchFilesHandler(w http.ResponseWriter, r *http.Request) {
 	params := dto.FileSearchParams{
 		Filename: r.URL.Query().Get("filename"),
 		MimeType: r.URL.Query().Get("mimeType"),
 		Uploader: r.URL.Query().Get("uploader"),
+		Limit:    50, // Default limit
+		Offset:   0,  // Default offset
 	}
 	// Parse numeric and date params
 	if minSize := r.URL.Query().Get("minSize"); minSize != "" {
@@ -53,24 +55,22 @@ func SearchFilesHandler(w http.ResponseWriter, r *http.Request) {
 	params.StartDate = r.URL.Query().Get("startDate")
 	params.EndDate = r.URL.Query().Get("endDate")
 	if limit := r.URL.Query().Get("limit"); limit != "" {
-		if v, err := parseInt(limit); err == nil {
+		if v, err := parseInt(limit); err == nil && v > 0 {
 			params.Limit = v
 		}
 	}
 	if offset := r.URL.Query().Get("offset"); offset != "" {
-		if v, err := parseInt(offset); err == nil {
+		if v, err := parseInt(offset); err == nil && v >= 0 {
 			params.Offset = v
 		}
 	}
 	results, err := fileSearchService.SearchFiles(params)
 	if err != nil {
 		logger.Error("File search failed", zap.Error(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode([]dto.FileMeta{})
+		utils.WriteAPIError(w, http.StatusInternalServerError, "File search failed", err.Error())
 		return
 	}
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(results)
+	utils.WriteAPIResponse(w, http.StatusOK, "Files found successfully", results)
 }
 
 func parseFloat(s string) (float64, error) {
