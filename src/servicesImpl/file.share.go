@@ -66,7 +66,7 @@ func (s *PublicShareService) SharePublicly(req dto.PublicShareRequest) (dto.Publ
 	}
 	// Update is_public flag in user_files
 	_ = s.repo.SetFilePublic(req.FileId, req.Username)
-	publicUrl := "http://localhost:8080/api/v1/file/path/view?token=" + token
+	publicUrl := "http://localhost:8080/api/v1/file/public/view?token=" + token
 	return dto.PublicShareResponse{PublicUrl: publicUrl, Token: token}, nil
 }
 

@@ -27,6 +27,10 @@ func (s *UserFileCrudService) DeleteFile(req dto.DeleteFileRequest) error {
 	return s.repo.DeleteFile(req.FileId, req.Username)
 }
 
+func (s *UserFileCrudService) InsertUserFile(username, fileId, filename, permission string) error {
+	return s.repo.InsertUserFile(username, fileId, filename, permission)
+}
+
 // User CRUD
 func (s *UserFileCrudService) GetUser(username string) (dto.User, error) {
 	return dto.User{}, nil // Placeholder for removed functionality
