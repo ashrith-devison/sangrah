@@ -49,7 +49,7 @@ func main() {
 	routers.RegisterAuthRoutes(authMux)
 	mux.Handle("/api/v1/auth/", http.StripPrefix("/api/v1/auth", authMux))
 
-	// Register file routes
+	// Register file routes and tested
 	fileMux := http.NewServeMux()
 	routers.RegisterFileRoutes(fileMux)
 	mux.Handle("/api/v1/file/", http.StripPrefix("/api/v1/file", fileMux))
