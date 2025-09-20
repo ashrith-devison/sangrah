@@ -6,10 +6,44 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-blue.svg)](https://postgresql.org/)
 [![Swagger](https://img.shields.io/badge/Swagger-API_Docs-green.svg)](http://localhost:8080/api/docs/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://docker.com/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)]()
 
 ---
 
-## 📋 Table of Contents
+## ✨ Features
+
+| Feature | Description |
+|---------|-------------|
+| 🔐 **Secure Authentication** | JWT-based auth with bcrypt password hashing |
+| 📁 **File Deduplication** | SHA-256 based deduplication saves storage space |
+| 🔍 **Advanced Search** | Search files by name, MIME type, and metadata |
+| 👥 **User Management** | Role-based access (user/admin) with permissions |
+| 📊 **Analytics Dashboard** | Comprehensive usage stats and storage analytics |
+| 🌐 **Public Sharing** | Token-based public file sharing |
+| 🐳 **Docker Ready** | Containerized deployment with Docker Compose |
+| 📚 **API Documentation** | Auto-generated Swagger docs |
+| 🔄 **Real-time Sync** | Efficient file synchronization |
+
+---
+
+## � Recent Updates
+
+### v1.2.0 - Enhanced Analytics
+- ✅ Added physical vs logical file classification in admin stats
+- ✅ Implemented space usage analytics with deduplication savings
+- ✅ Fixed file extension handling for better consistency
+- ✅ Improved error responses for database scan issues
+
+### v1.1.0 - Security & Performance
+- 🔒 Enhanced JWT authentication with secure token handling
+- 📊 Added comprehensive storage analytics
+- 🐛 Fixed MIME type detection for file uploads
+- ⚡ Optimized database queries with proper indexing
+
+---
+
+## �📋 Table of Contents
 
 ### 🚀 Getting Started
 - [Quick Start](#-quick-start)
@@ -56,6 +90,21 @@
 - **Go 1.21+** - [Download here](https://golang.org/dl/)
 - **PostgreSQL 15+** - [Download here](https://postgresql.org/download/)
 - **Docker & Docker Compose** (optional, for containerized deployment)
+
+### Quick Setup Flow
+
+```mermaid
+flowchart TD
+    A[📥 Clone Repository] --> B[📦 Install Dependencies]
+    B --> C[⚙️ Configure Environment]
+    C --> D[🐘 Setup Database]
+    D --> E[🚀 Start Application]
+    E --> F[📖 Access API Docs]
+
+    style A fill:#e3f2fd
+    style E fill:#c8e6c9
+    style F fill:#fff9c4
+```
 
 ### Installation
 
@@ -105,32 +154,32 @@ FileVault is a modern, scalable file management system designed with clean archi
 ```mermaid
 graph TB
     subgraph "Client Layer"
-        A[Web/Mobile Apps]
-        B[API Clients]
+        A[📱 Web/Mobile Apps]
+        B[🤖 API Clients]
     end
 
     subgraph "API Gateway"
-        C[REST API]
-        D[Swagger Docs]
+        C[🌐 REST API]
+        D[📖 Swagger Docs]
     end
 
     subgraph "Application Layer"
-        E[Controllers]
-        F[Services]
-        G[DTOs]
+        E[🎛️ Controllers]
+        F[⚙️ Services]
+        G[📦 DTOs]
     end
 
     subgraph "Domain Layer"
-        H[Business Logic]
-        I[Validation]
-        J[Security]
+        H[🧠 Business Logic]
+        I[✅ Validation]
+        J[🔐 Security]
     end
 
     subgraph "Infrastructure Layer"
-        K[Repositories]
-        L[PostgreSQL]
-        M[File Storage]
-        N[Cache/Redis]
+        K[💾 Repositories]
+        L[🐘 PostgreSQL]
+        M[📁 File Storage]
+        N[⚡ Cache/Redis]
     end
 
     A --> C
@@ -142,6 +191,12 @@ graph TB
     K --> L
     K --> M
     F --> N
+
+    style A fill:#e1f5fe
+    style C fill:#f3e5f5
+    style E fill:#e8f5e8
+    style H fill:#fff3e0
+    style K fill:#fce4ec
 ```
 
 ### Layered Architecture
@@ -288,14 +343,17 @@ FileVault follows RESTful API design principles with consistent patterns:
 ```
 
 #### HTTP Status Codes
-- `200` - Success
-- `201` - Created
-- `400` - Bad Request
-- `401` - Unauthorized
-- `403` - Forbidden
-- `404` - Not Found
-- `409` - Conflict
-- `500` - Internal Server Error
+
+| Code | Status | Description |
+|------|--------|-------------|
+| 200 | ✅ Success | Request successful |
+| 201 | ➕ Created | Resource created |
+| 400 | ❌ Bad Request | Invalid input |
+| 401 | 🚫 Unauthorized | Authentication required |
+| 403 | ⛔ Forbidden | Insufficient permissions |
+| 404 | 🔍 Not Found | Resource not found |
+| 409 | ⚠️ Conflict | Resource conflict |
+| 500 | 💥 Internal Error | Server error |
 
 ---
 
@@ -418,9 +476,12 @@ Authorization: Bearer <admin_jwt_token>
   "message": "Stats fetched",
   "data": {
     "totalFiles": 150,
+    "totalPhysicalFiles": 120,
     "totalUsers": 25,
     "totalDownloads": 1250,
-    "totalStorageUsed": 524288000
+    "totalStorageUsed": 524288000.0,
+    "totalLogicalStorage": 629145600.0,
+    "spaceSaved": 104857600.0
   }
 }
 ```
@@ -475,50 +536,50 @@ GET /api/v1/file/public/view?token=abc123def456
 ```
 filevault-backend/
 ├── 📁 src/
-│   ├── 📁 controllers/     # HTTP request handlers
+│   ├── 📁 controllers/     # 🎛️ HTTP request handlers
 │   │   ├── auth.controllers.go
 │   │   ├── file.controllers.go
 │   │   ├── admin.controllers.go
 │   │   └── file.search.controllers.go
-│   ├── 📁 dto/            # Data Transfer Objects
+│   ├── 📁 dto/            # 📦 Data Transfer Objects
 │   │   ├── auth.go
 │   │   ├── file.meta-data.go
 │   │   ├── file.search.go
 │   │   └── admin.go
-│   ├── 📁 repos/          # Database repositories
+│   ├── 📁 repos/          # 💾 Database repositories
 │   │   ├── auth.repo.go
 │   │   ├── file.meta-data.repo.go
 │   │   ├── file.search.repo.go
 │   │   └── admin.repo.go
-│   ├── 📁 routers/        # Route definitions
+│   ├── 📁 routers/        # 🛣️ Route definitions
 │   │   ├── auth.routes.go
 │   │   ├── file.routes.go
 │   │   └── admin.routes.go
-│   ├── 📁 services/       # Service interfaces
+│   ├── 📁 services/       # ⚙️ Service interfaces
 │   │   ├── auth.go
 │   │   ├── files.go
 │   │   └── admin.go
-│   ├── 📁 servicesImpl/   # Service implementations
+│   ├── 📁 servicesImpl/   # 🔧 Service implementations
 │   │   ├── auth.go
 │   │   ├── file.go
 │   │   ├── file.search.go
 │   │   └── admin.go
-│   ├── 📁 middleware/     # HTTP middleware
+│   ├── 📁 middleware/     # 🛡️ HTTP middleware
 │   │   └── admin.go
-│   └── 📁 utils/          # Utility functions
+│   └── 📁 utils/          # 🛠️ Utility functions
 │       ├── apiResponse.go
 │       ├── apiError.go
 │       ├── jwt.conf.go
 │       └── postgres.conf.go
-├── 📁 storage/           # File storage directory
-├── 📁 tmp/              # Temporary files
-├── 📁 docs/             # Generated documentation
-├── 📄 main.go           # Application entry point
-├── 📄 go.mod            # Go module file
+├── 📁 storage/           # 📂 File storage directory
+├── 📁 tmp/              # 🗂️ Temporary files
+├── 📁 docs/             # 📚 Generated documentation
+├── 📄 main.go           # 🚀 Application entry point
+├── 📄 go.mod            # 📋 Go module file
 ├── 📄 docker-compose.yaml
 ├── 📄 Dockerfile
-├── 📄 .env              # Environment configuration
-└── 📄 README.md         # This file
+├── 📄 .env              # 🔧 Environment configuration
+└── 📄 README.md         # 📖 This file
 ```
 
 ### Key Components
