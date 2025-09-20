@@ -33,8 +33,11 @@ type AdminFile struct {
 
 // AdminStatsResponse for usage statistics
 type AdminStatsResponse struct {
-	TotalFiles       int   `json:"totalFiles"`
-	TotalUsers       int   `json:"totalUsers"`
-	TotalDownloads   int   `json:"totalDownloads"`
-	TotalStorageUsed int64 `json:"totalStorageUsed"`
+	TotalLogicalFiles   int     `json:"totalFiles"`
+	TotalPhysicalFiles  int     `json:"totalPhysicalFiles"`
+	TotalUsers          int     `json:"totalUsers"`
+	TotalDownloads      int     `json:"totalDownloads"`
+	TotalStorageUsed    float64 `json:"totalStorageUsed"`
+	TotalLogicalStorage float64 `json:"totalLogicalStorage"`
+	SpaceSaved          float64 `json:"spaceSaved"`
 }

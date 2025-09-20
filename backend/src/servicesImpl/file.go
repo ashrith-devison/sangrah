@@ -115,10 +115,14 @@ func CoreUpload(file io.ReadSeeker, filename string, r *http.Request) (string, s
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return "", "", "", "", err
 	}
-	exts, err := mime.ExtensionsByType(filetype)
 	var ext string
-	if err == nil && len(exts) > 0 {
-		ext = exts[0]
+	if filetype == "image/jpeg" {
+		ext = ".jpg"
+	} else {
+		exts, err := mime.ExtensionsByType(filetype)
+		if err == nil && len(exts) > 0 {
+			ext = exts[0]
+		}
 	}
 	filePath := filepath.Join("storage", hashSum+ext)
 	out, err := os.Create(filePath)
