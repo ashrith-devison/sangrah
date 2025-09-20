@@ -50,7 +50,12 @@ func (r *AdminRepo) ShareFileWithUser(fileId, shareWith, permission string) erro
 func (r *AdminRepo) GetUsageStats() (dto.AdminStatsResponse, error) {
 	var stats dto.AdminStatsResponse
 	// Total files (logical files)
-	err := r.Db.QueryRow("SELECT COUNT(*) FROM user_files WHERE permission = 'owner'").Scan(&stats.TotalFiles)
+	err := r.Db.QueryRow("SELECT COUNT(*) FROM user_files WHERE permission = 'owner'").Scan(&stats.TotalLogicalFiles)
+	if err != nil {
+		return stats, err
+	}
+	// Total physical files
+	err = r.Db.QueryRow("SELECT COUNT(*) FROM file_metadata").Scan(&stats.TotalPhysicalFiles)
 	if err != nil {
 		return stats, err
 	}
@@ -64,7 +69,17 @@ func (r *AdminRepo) GetUsageStats() (dto.AdminStatsResponse, error) {
 	if err != nil {
 		return stats, err
 	}
-	// Total storage used
+	// Total physical storage used
 	err = r.Db.QueryRow("SELECT COALESCE(SUM(file_size), 0) FROM file_metadata").Scan(&stats.TotalStorageUsed)
-	return stats, err
+	if err != nil {
+		return stats, err
+	}
+	// Total logical storage
+	err = r.Db.QueryRow("SELECT COALESCE(SUM(file_size * reference_count), 0) FROM file_metadata").Scan(&stats.TotalLogicalStorage)
+	if err != nil {
+		return stats, err
+	}
+	// Space saved by deduplication
+	stats.SpaceSaved = stats.TotalLogicalStorage - stats.TotalStorageUsed
+	return stats, nil
 }

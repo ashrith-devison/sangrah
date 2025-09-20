@@ -335,12 +335,22 @@ func FileMetaUploadHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	// Insert original filename into user_files
+	// Insert corrected filename into user_files
 	db, dbErr := utils.ConnectPostgres()
 	if dbErr == nil {
 		defer db.Close()
 		fileCrudRepo := repos.FileCrudRepo{Db: db}
-		_ = fileCrudRepo.InsertUserFile(uploader, hash, handler.Filename, "owner")
+		// Correct the extension based on MIME
+		originalExt := filepath.Ext(handler.Filename)
+		correctedFilename := handler.Filename
+		if originalExt != "" && filename != hash {
+			// filename is hashSum + ext, so ext is the correct extension
+			correctExt := filepath.Ext(filename)
+			if correctExt != "" && correctExt != originalExt {
+				correctedFilename = strings.TrimSuffix(handler.Filename, originalExt) + correctExt
+			}
+		}
+		_ = fileCrudRepo.InsertUserFile(uploader, hash, correctedFilename, "owner")
 	}
 	logger.Info("File and metadata uploaded", zap.String("requestID", requestID), zap.String("filename", handler.Filename), zap.String("sha256", hash), zap.String("uploader", uploader))
 
