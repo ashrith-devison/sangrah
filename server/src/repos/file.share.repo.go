@@ -3,6 +3,7 @@ package repos
 import (
 	"backend/src/dto"
 	"database/sql"
+	"fmt"
 )
 
 type FileShareRepo struct {
@@ -27,13 +28,21 @@ func NewFileShareRepo(db *sql.DB) *FileShareRepo {
 }
 
 func (r *FileShareRepo) ShareFile(owner, recipient string, fileId string, permission string) error {
+	// Fetch filename for fileId and owner
+	var filename string
+	err := r.db.QueryRow("SELECT filename FROM user_files WHERE file_id = $1 AND username = $2 AND permission = 'owner'", fileId, owner).Scan(&filename)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("file not found or not owned by user")
+	} else if err != nil {
+		return err
+	}
 	query := `
-		INSERT INTO user_files (username, file_id, permission)
-		VALUES ($1, $2, $3)
-		ON CONFLICT (username, file_id)
-		DO UPDATE SET permission = EXCLUDED.permission
+		INSERT INTO user_files (username, file_id, shared_with, shared_by, permission, filename)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (file_id, username, shared_with)
+		DO UPDATE SET permission = EXCLUDED.permission, shared_by = EXCLUDED.shared_by
 	`
-	_, err := r.db.Exec(query, recipient, fileId, permission)
+	_, err = r.db.Exec(query, recipient, fileId, owner, owner, permission, filename)
 	return err
 }
 

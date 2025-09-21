@@ -6,7 +6,6 @@ CREATE TABLE IF NOT EXISTS users (
     is_admin BOOLEAN DEFAULT FALSE
 );
 
--- File metadata table
 CREATE TABLE IF NOT EXISTS file_metadata (
     sha256 VARCHAR(64) PRIMARY KEY,
     filename VARCHAR(255) NOT NULL,
@@ -17,19 +16,21 @@ CREATE TABLE IF NOT EXISTS file_metadata (
     file_size FLOAT NOT NULL
 );
 
--- User files table
 CREATE TABLE IF NOT EXISTS user_files (
     id SERIAL PRIMARY KEY,
     username VARCHAR(255) NOT NULL REFERENCES users(username) ON DELETE CASCADE,
     file_id VARCHAR(64) NOT NULL REFERENCES file_metadata(sha256) ON DELETE CASCADE,
     filename VARCHAR(255) NOT NULL,
+    path TEXT,
     permission VARCHAR(32) NOT NULL DEFAULT 'owner',
     shared_with VARCHAR(255),
+    shared_by VARCHAR(255),
     is_public BOOLEAN DEFAULT FALSE,
     download_count INT DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (username, file_id)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+-- Unique constraint for file sharing (owner, file_id, shared_with, shared_by)
+ALTER TABLE user_files ADD CONSTRAINT unique_file_share UNIQUE (file_id, username, shared_with);
 
 CREATE INDEX IF NOT EXISTS idx_file_metadata_filename ON file_metadata(filename);
 CREATE INDEX IF NOT EXISTS idx_file_metadata_mime_type ON file_metadata(mime_type);

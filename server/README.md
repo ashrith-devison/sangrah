@@ -2,12 +2,12 @@
 
 > A production-grade file management system built with Go, featuring secure authentication, deduplication, and comprehensive API documentation.
 
-[![Go Version](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://golang.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-blue.svg)](https://postgresql.org/)
-[![Swagger](https://img.shields.io/badge/Swagger-API_Docs-green.svg)](http://localhost:8080/api/docs/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://docker.com/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)]()
+![Go Version](https://img.shields.io/badge/Go-1.21+-1e88e5?style=flat-square)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-43a047?style=flat-square)
+![Swagger](https://img.shields.io/badge/Swagger-API_Docs-ffd600?style=flat-square)
+![Docker](https://img.shields.io/badge/Docker-Ready-546e7a?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-616161?style=flat-square)
+![Build Status](https://img.shields.io/badge/Build-Passing-43a047?style=flat-square)
 
 ---
 
@@ -101,9 +101,9 @@ flowchart TD
     D --> E[🚀 Start Application]
     E --> F[📖 Access API Docs]
 
-    style A fill:#e3f2fd
-    style E fill:#c8e6c9
-    style F fill:#fff9c4
+  style A fill:#1976d2,color:#fff
+  style E fill:#388e3c,color:#fff
+  style F fill:#ffd600,color:#222
 ```
 
 ### Installation
@@ -192,11 +192,11 @@ graph TB
     K --> M
     F --> N
 
-    style A fill:#e1f5fe
-    style C fill:#f3e5f5
-    style E fill:#e8f5e8
-    style H fill:#fff3e0
-    style K fill:#fce4ec
+  style A fill:#1976d2,color:#fff
+  style C fill:#7e57c2,color:#fff
+  style E fill:#388e3c,color:#fff
+  style H fill:#ffd600,color:#222
+  style K fill:#616161,color:#fff
 ```
 
 ### Layered Architecture
