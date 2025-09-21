@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import {
-  Search,
   Filter,
   Grid3X3,
   List,
@@ -19,34 +18,20 @@ import {
   Clock,
   Users,
   Star,
-  FolderOpen,
   ArrowUpDown,
   ChevronDown,
   UserPlus,
   Link,
-  Shield,
-  Calendar,
   Copy,
-  ExternalLink,
-  Mail,
-  MessageSquare,
   Globe,
-  Lock,
   Folder,
-  UserCheck,
-  UserX,
   Settings,
-  Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from '@/components/ui/card';
 import {
   ContextMenu,
@@ -60,9 +45,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Tooltip,
   TooltipContent,

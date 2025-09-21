@@ -281,7 +281,7 @@ export default function Page() {
                 <Upload className="w-4 h-4 text-green-400" />
                 <div className="flex-1">
                   <p className="text-white text-sm">
-                    Uploaded 3 files to "Project Assets"
+                    Uploaded 3 files to `&quot;`Project Assets`&quot;`
                   </p>
                   <p className="text-gray-400 text-xs">2 hours ago</p>
                 </div>
@@ -290,7 +290,7 @@ export default function Page() {
                 <Share2 className="w-4 h-4 text-blue-400" />
                 <div className="flex-1">
                   <p className="text-white text-sm">
-                    Shared "Financial Report.pdf" with team
+                    Shared `&quot;`Financial Report.pdf`&quot;` with team
                   </p>
                   <p className="text-gray-400 text-xs">1 day ago</p>
                 </div>
@@ -299,7 +299,7 @@ export default function Page() {
                 <Download className="w-4 h-4 text-purple-400" />
                 <div className="flex-1">
                   <p className="text-white text-sm">
-                    Downloaded "Design Assets.zip"
+                    Downloaded `&quot;`Design Assets.zip`&quot;`
                   </p>
                   <p className="text-gray-400 text-xs">3 days ago</p>
                 </div>

@@ -9,13 +9,10 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  Github,
-  Chrome,
   Shield,
   CheckCircle,
   AlertCircle,
   User,
-  Building,
   Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -29,7 +26,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 
 export default function SignUpPage() {
   const [showPassword, setShowPassword] = useState(false);

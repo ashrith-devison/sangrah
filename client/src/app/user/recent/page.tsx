@@ -24,7 +24,6 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -266,7 +265,7 @@ export default function RecentFilesPage() {
                 Recent Files
               </h1>
               <p className="text-sm sm:text-base text-gray-400">
-                Files you've recently opened, modified, or accessed
+                Files you&apos;ve recently opened, modified, or accessed
               </p>
             </div>
             <div className="flex items-center gap-2 text-sm w-full lg:w-auto justify-between lg:justify-end">

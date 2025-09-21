@@ -9,8 +9,6 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  Github,
-  Chrome,
   Shield,
   CheckCircle,
   AlertCircle,
@@ -26,7 +24,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -129,7 +126,7 @@ export default function LoginPage() {
             </Link>
             <div className="flex items-center space-x-4">
               <span className="text-gray-400 text-sm">
-                Don't have an account?
+                Don`&apos;`t have an account?
               </span>
               <Link href="/signup">
                 <Button
