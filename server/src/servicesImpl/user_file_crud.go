@@ -27,7 +27,7 @@ func (s *UserFileCrudService) InsertUserFileWithPath(username, fileId, filename,
 }
 
 func (s *UserFileCrudService) RenameFile(req dto.FileRenameRequest) error {
-	return s.Repo.RenameFile(req.FileID, req.NewName, req.Username)
+	return s.Repo.RenameFileByFilename(req.Username, req.Filename, req.NewName)
 }
 
 func (s *UserFileCrudService) DeleteFile(req dto.DeleteFileRequest) error {

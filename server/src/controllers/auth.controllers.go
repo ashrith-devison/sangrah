@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -41,16 +42,18 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		requestID = uuid.New().String()
 	}
 	var req dto.RegisterRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		logger.Error("Invalid request payload", zap.String("requestID", requestID), zap.Error(err))
-		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid request payload", err.Error())
+	decodeErr := json.NewDecoder(r.Body).Decode(&req)
+	if decodeErr != nil {
+		rawBody, _ := ioutil.ReadAll(r.Body)
+		logger.Error("Invalid request payload", zap.String("requestID", requestID), zap.Error(decodeErr), zap.String("rawBody", string(rawBody)))
+		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid request payload", decodeErr.Error())
 		return
 	}
 	resp, err := authService.RegisterUser(req, logger, requestID)
 	if err != nil {
 		logger.Error("Registration failed", zap.String("requestID", requestID), zap.Error(err))
-		if err.Error() == "email already registered" {
-			utils.WriteAPIError(w, http.StatusConflict, "Email already registered", err.Error())
+		if err.Error() == "email already registered" || err.Error() == "username already taken" {
+			utils.WriteAPIError(w, http.StatusConflict, err.Error(), err.Error())
 			return
 		}
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Registration failed", err.Error())
@@ -67,7 +70,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Param loginRequest body dto.LoginRequest true "User login payload"
-// @Success 200 {object} utils.APIResponse "Login successful"
+// @Success 200 {object} dto.LoginResponse "Login successful (returns username, email, token, role)"
 // @Failure 400 {object} utils.APIError "Invalid login payload"
 // @Failure 401 {object} utils.APIError "Login failed"
 // @Router /api/v1/auth/login [post]

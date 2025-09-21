@@ -175,9 +175,9 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Login successful",
+                        "description": "Login successful (returns username, email, token, role)",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIResponse"
+                            "$ref": "#/definitions/dto.LoginResponse"
                         }
                     },
                     "400": {
@@ -544,7 +544,7 @@ const docTemplate = `{
                 "summary": "Rename a file",
                 "parameters": [
                     {
-                        "description": "Rename file payload",
+                        "description": "Rename file payload. Required: filename, newName, username.",
                         "name": "renameRequest",
                         "in": "body",
                         "required": true,
@@ -913,7 +913,7 @@ const docTemplate = `{
         },
         "/api/v1/file/upload": {
             "post": {
-                "description": "Uploads a file, validates MIME type, and deduplicates using SHA-256 hash. Returns reference if duplicate.",
+                "description": "Uploads a file, validates MIME type, and deduplicates using SHA-256 hash. Returns reference if duplicate.\nUpload multiple files. Each file is processed and returns status for each.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -921,27 +921,29 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
+                    "file",
                     "file"
                 ],
-                "summary": "Upload a file",
+                "summary": "Upload one or more files",
                 "parameters": [
                     {
                         "type": "file",
-                        "description": "File to upload",
+                        "description": "Files to upload (multiple allowed)",
                         "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Uploader (username)",
+                        "name": "username",
                         "in": "formData",
                         "required": true
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "Duplicate file detected",
-                        "schema": {
-                            "$ref": "#/definitions/utils.APIResponse"
-                        }
-                    },
                     "201": {
-                        "description": "File uploaded successfully",
+                        "description": "Files processed",
                         "schema": {
                             "$ref": "#/definitions/utils.APIResponse"
                         }
@@ -963,7 +965,7 @@ const docTemplate = `{
         },
         "/api/v1/file/upload-meta": {
             "post": {
-                "description": "Accepts file and metadata, saves both to database. Supports optional folder path.",
+                "description": "Accepts multiple files and metadata, saves all to database. Supports optional folder path.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -973,11 +975,11 @@ const docTemplate = `{
                 "tags": [
                     "file"
                 ],
-                "summary": "Upload file with metadata",
+                "summary": "Upload one or more files with metadata",
                 "parameters": [
                     {
                         "type": "file",
-                        "description": "File to upload",
+                        "description": "Files to upload (multiple allowed)",
                         "name": "file",
                         "in": "formData",
                         "required": true
@@ -998,7 +1000,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "File and metadata uploaded",
+                        "description": "Files and metadata uploaded",
                         "schema": {
                             "$ref": "#/definitions/utils.APIResponse"
                         }
@@ -1158,7 +1160,7 @@ const docTemplate = `{
         "dto.FileRenameRequest": {
             "type": "object",
             "properties": {
-                "fileId": {
+                "filename": {
                     "type": "string"
                 },
                 "newName": {
@@ -1205,6 +1207,23 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                },
+                "username": {
                     "type": "string"
                 }
             }

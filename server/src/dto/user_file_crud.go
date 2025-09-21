@@ -18,7 +18,7 @@ type UserUpdateRequest struct {
 }
 
 type FileRenameRequest struct {
-	FileID   string `json:"fileId"`
+	Filename string `json:"filename"`
 	NewName  string `json:"newName"`
 	Username string `json:"username"`
 }

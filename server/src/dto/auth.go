@@ -11,6 +11,7 @@ type RegisterRequest struct {
 type RegisterResponse struct {
 	Username string `json:"username,omitempty"`
 	Email    string `json:"email,omitempty"`
+	Token    string `json:"token,omitempty"`
 }
 
 // LoginRequest represents the payload for user login.
@@ -21,7 +22,8 @@ type LoginRequest struct {
 
 // LoginResponse represents the response after successful login.
 type LoginResponse struct {
-	Token string `json:"token"`
 	Username string `json:"username"`
-	Email string `json:"email"`
+	Email    string `json:"email"`
+	Token    string `json:"token"`
+	Role     string `json:"role"`
 }

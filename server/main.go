@@ -60,6 +60,29 @@ func main() {
 	routers.RegisterAdminRoutes(adminMux)
 	mux.Handle("/api/v1/admin/", http.StripPrefix("/api/v1/admin", adminMux))
 
+	// CORS middleware for development
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	})
+
+	logger.Info("Starting server", zap.String("port", port))
+	srv := &http.Server{
+		Addr:         ":" + port,
+		Handler:      handler,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+	if err := srv.ListenAndServe(); err != nil {
+		logger.Fatal("Server failed", zap.Error(err))
+	}
+
 	server := &http.Server{
 		Addr:         ":" + port,
 		Handler:      mux,
