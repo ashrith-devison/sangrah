@@ -7,6 +7,8 @@ export interface FileUpload {
   size: string;
   type: string;
   thumbnail?: string;
+  sha256?: string;
+  message?: string;
 }
 
 export interface UploadFolder {
@@ -55,6 +57,8 @@ export interface UploadDestinationProps {
   selectedFolder: string;
   folders: UploadFolder[];
   onFolderChange: (folderId: string) => void;
+  customPath?: string;
+  onCustomPathChange?: (path: string) => void;
 }
 
 export interface UploadQuickActionsProps {

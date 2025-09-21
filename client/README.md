@@ -12,11 +12,15 @@
 - 🚫 Route protection and unauthorized access prevention
 
 ### 📁 **File Management**
-- 📤 Secure file upload and storage
-- 🔍 Advanced search and filtering
-- 🌟 File starring and organization
-- 🗑️ Trash and recovery system
-- 🔗 Secure file sharing with permissions
+- 📤 Secure file upload with drag-and-drop support
+- 📂 Custom folder creation and organization
+- 🎯 Real-time upload progress tracking
+- 🔍 Advanced search and filtering capabilities
+- 🌟 File starring and organization systems
+- 🗑️ Trash and recovery functionality
+- 🔗 Secure file sharing with token-based permissions
+- 📊 File deduplication with SHA-256 integrity verification
+- 📝 Multi-format file support with automatic MIME detection
 
 ### 💾 **State Management**
 - ⚡ Zustand for lightweight, scalable state
@@ -40,6 +44,22 @@
 [![Zustand](https://img.shields.io/badge/Zustand-4-orange?style=flat-square)](https://zustand-demo.pmnd.rs/)
 
 </div>
+
+## 🆕 Recent Updates
+
+### v2.1.0 - Enhanced Upload System
+- ✅ **Custom Folder Input** - Users can create any folder structure for uploads
+- ✅ **Real-time API Integration** - Direct backend file upload with progress tracking
+- ✅ **Advanced Error Handling** - Comprehensive error messages and retry functionality
+- ✅ **File Validation** - Size limits, format checking, and duplicate prevention
+- ✅ **Keyboard Shortcuts** - Enter to save, Escape to cancel in custom folder input
+- ✅ **Visual Feedback** - Success/error toasts with SHA-256 hash verification
+
+### v2.0.0 - Authentication System
+- 🔐 **Dual-layer Security** - Server middleware + client-side route protection
+- 🍪 **Persistent Sessions** - Cookie + localStorage integration with SSR compatibility
+- 👥 **Role-based Access** - User/Admin permissions with atomic state updates
+- 🔄 **JWT Management** - Automatic token refresh and secure storage
 
 ## 🎨 Design System
 
@@ -160,6 +180,59 @@ App Layout
     └── Footer
 ```
 
+## 📁 Upload System
+
+### 🎯 **Custom Folder Destination**
+The upload system features an advanced folder management interface that allows users to:
+
+- **📂 Predefined Folders**: Quick access to Documents, Images, Videos, Projects
+- **✏️ Custom Path Input**: Create any folder structure (e.g., `my-project/assets/icons`)
+- **🔄 Real-time Switching**: Toggle between predefined and custom destinations
+- **✅ Path Validation**: Automatic validation and helpful formatting hints
+
+### 🚀 **Upload Flow**
+```typescript
+// Custom Folder Selection
+selectedFolder: 'custom' | 'documents' | 'images' | 'videos' | 'projects'
+customPath: string // User-defined path like "portfolio/designs"
+
+// API Integration
+POST /api/v1/file/upload-meta
+FormData: {
+  file: File,
+  uploader: string,
+  path: string // Either predefined or custom path
+}
+```
+
+### ⚡ **Upload Features**
+- **📤 Drag & Drop**: Intuitive file selection with visual feedback
+- **📊 Progress Tracking**: Real-time upload progress with percentage
+- **🔄 Retry Mechanism**: Failed uploads can be retried with one click
+- **✅ Success Feedback**: SHA-256 hash display for file integrity verification
+- **❌ Error Handling**: Detailed error messages with actionable feedback
+- **📝 File Validation**: Size limits (100MB), empty file detection
+
+### 🎨 **UI Components**
+```
+┌─────────────────────────────────┐
+│       Upload Destination        │
+├─────────────────────────────────┤
+│ 📁 Folder Dropdown             │
+│ ├── Root                       │
+│ ├── Documents                  │
+│ ├── Images                     │
+│ ├── Videos                     │
+│ ├── Projects                   │
+│ └── ✏️ Custom Folder...         │
+│                                 │
+│ ✏️ Custom Path Input            │
+│ ├── Input: "my-folder/sub"     │
+│ ├── ✅ Save (Enter)             │
+│ └── ❌ Cancel (Escape)          │
+└─────────────────────────────────┘
+```
+
 ### 🔐 Authentication & Security
 - **JWT-based authentication** with persistent sessions
 - **Role-based access control** (User/Admin)
@@ -168,11 +241,15 @@ App Layout
 - **Secure cookie and localStorage management**
 
 ### 📁 File Management
-- **Intelligent file deduplication**
-- **Advanced search and filtering**
-- **Secure file sharing** with permission controls
-- **File organization** with folders and tags
-- **Upload progress tracking**
+- **Custom folder destination** - Create and organize files in user-defined folder structures
+- **Real-time upload progress** - Live progress tracking with visual feedback
+- **Drag-and-drop interface** - Intuitive file upload with multi-file support
+- **Intelligent file deduplication** - SHA-256 based duplicate detection
+- **Advanced search and filtering** - Multi-parameter file discovery
+- **Secure file sharing** - Token-based permission controls
+- **File organization** - Starring, tagging, and folder management
+- **API integration** - Direct backend upload with error handling
+- **File validation** - Size limits and format verification
 
 ### 🎨 User Interface
 - **Modern dark theme** with gradient designs
@@ -320,10 +397,27 @@ The frontend integrates with a Go backend server:
 - `POST /v1/auth/logout` - User logout
 
 ### File Management Endpoints
-- `GET /v1/files` - List user files
-- `POST /v1/files/upload` - Upload files
-- `DELETE /v1/files/:id` - Delete files
-- `POST /v1/files/share` - Share files
+- `GET /v1/files` - List user files with filtering and pagination
+- `POST /v1/file/upload-meta` - **Upload files with metadata**
+  ```typescript
+  FormData: {
+    file: File,           // The file to upload
+    uploader: string,     // Username of the uploader
+    path: string         // Custom or predefined folder path
+  }
+  Response: {
+    status: "success",
+    message: "Files and metadata processed",
+    data: {
+      filename: string,   // Processed filename
+      message: string,    // Success message
+      sha256: string     // File integrity hash
+    }
+  }
+  ```
+- `DELETE /v1/files/:id` - Delete files with trash recovery
+- `POST /v1/files/share` - Create secure sharing tokens
+- `GET /v1/files/search` - Advanced file search and filtering
 
 ## 🚀 Deployment
 
