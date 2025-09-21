@@ -299,6 +299,58 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/file/delete-filename": {
+            "post": {
+                "description": "Deletes a file for a user by filename. Supports deletion of duplicate files uploaded as copies.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "file"
+                ],
+                "summary": "Delete a file by filename",
+                "parameters": [
+                    {
+                        "description": "Delete file by filename payload (filename, username)",
+                        "name": "deleteRequest",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.DeleteFileByFilenameRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "File deleted successfully",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "File not found or not owned",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/file/owned": {
             "get": {
                 "description": "Returns files where the user has 'owner' permission",
@@ -427,7 +479,7 @@ const docTemplate = `{
         },
         "/api/v1/file/public-share": {
             "post": {
-                "description": "Generates a public link for a file or folder, accessible to anyone with the link",
+                "description": "Generates a public link for a file, accessible to anyone with the link. Accepts filename and username in request body.",
                 "consumes": [
                     "application/json"
                 ],
@@ -437,15 +489,15 @@ const docTemplate = `{
                 "tags": [
                     "file"
                 ],
-                "summary": "Share file or folder publicly",
+                "summary": "Share file publicly by filename",
                 "parameters": [
                     {
-                        "description": "Public share payload (fileId/folderId, isFolder, username)",
-                        "name": "shareRequest",
+                        "description": "Public share payload (filename, username)",
+                        "name": "payload",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.PublicShareRequest"
+                            "$ref": "#/definitions/dto.PublicShareByFilenameRequest"
                         }
                     }
                 ],
@@ -463,7 +515,7 @@ const docTemplate = `{
                         }
                     },
                     "404": {
-                        "description": "File/Folder not found or not owned",
+                        "description": "File not found or not owned",
                         "schema": {
                             "$ref": "#/definitions/utils.APIError"
                         }
@@ -715,6 +767,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/file/shared-with-me": {
+            "get": {
+                "description": "Returns files where shared_with = username and permission != 'owner'",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "file"
+                ],
+                "summary": "List files shared with user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username to list files shared with",
+                        "name": "username",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of files shared with user",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.UserFile"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Missing username",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/file/shared/list": {
             "get": {
                 "description": "Lists files shared with or by the specified username",
@@ -748,6 +844,48 @@ const docTemplate = `{
                         "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/dto.FileShareResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/file/storage-quota": {
+            "get": {
+                "description": "Returns the storage quota used by the user in MB",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "file"
+                ],
+                "summary": "Get user storage quota used",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username to check storage quota for",
+                        "name": "username",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Storage quota used",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Missing username",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
                         }
                     }
                 }
@@ -825,7 +963,7 @@ const docTemplate = `{
         },
         "/api/v1/file/upload-meta": {
             "post": {
-                "description": "Accepts file and metadata, saves both to database",
+                "description": "Accepts file and metadata, saves both to database. Supports optional folder path.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -850,6 +988,12 @@ const docTemplate = `{
                         "name": "uploader",
                         "in": "formData",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Folder path (optional, defaults to /home)",
+                        "name": "path",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
@@ -932,17 +1076,37 @@ const docTemplate = `{
         "dto.AdminStatsResponse": {
             "type": "object",
             "properties": {
+                "spaceSaved": {
+                    "type": "number"
+                },
                 "totalDownloads": {
                     "type": "integer"
                 },
                 "totalFiles": {
                     "type": "integer"
                 },
-                "totalStorageUsed": {
+                "totalLogicalStorage": {
+                    "type": "number"
+                },
+                "totalPhysicalFiles": {
                     "type": "integer"
+                },
+                "totalStorageUsed": {
+                    "type": "number"
                 },
                 "totalUsers": {
                     "type": "integer"
+                }
+            }
+        },
+        "dto.DeleteFileByFilenameRequest": {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },
@@ -1045,10 +1209,10 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.PublicShareRequest": {
+        "dto.PublicShareByFilenameRequest": {
             "type": "object",
             "properties": {
-                "fileId": {
+                "filename": {
                     "type": "string"
                 },
                 "username": {

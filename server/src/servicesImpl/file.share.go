@@ -1,6 +1,7 @@
 package servicesImpl
 
 import (
+	"backend/src/config"
 	"backend/src/dto"
 	"backend/src/repos"
 	"backend/src/utils"
@@ -43,7 +44,8 @@ func (s *FileShareService) RevokeFileShare(owner string, fileId string, recipien
 // --- Public Share Service ---
 
 type PublicShareService struct {
-	repo *repos.FileShareRepo // You may want a dedicated repo for public shares
+	repo    *repos.FileShareRepo // You may want a dedicated repo for public shares
+	baseURL string
 }
 
 func NewPublicShareService() *PublicShareService {
@@ -52,7 +54,8 @@ func NewPublicShareService() *PublicShareService {
 		panic("Failed to connect to DB: " + err.Error())
 	}
 	repo := repos.NewFileShareRepo(db)
-	return &PublicShareService{repo: repo}
+	cfg, _ := config.LoadConfig()
+	return &PublicShareService{repo: repo, baseURL: cfg.PublicShareBaseURL}
 }
 
 // SharePublicly generates a token and persists mapping
@@ -66,7 +69,7 @@ func (s *PublicShareService) SharePublicly(req dto.PublicShareRequest) (dto.Publ
 	}
 	// Update is_public flag in user_files
 	_ = s.repo.SetFilePublic(req.FileId, req.Username)
-	publicUrl := "http://localhost:8080/api/v1/file/public/view?token=" + token
+	publicUrl := s.baseURL + token
 	return dto.PublicShareResponse{PublicUrl: publicUrl, Token: token}, nil
 }
 

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"backend/src/config"
 	"backend/src/dto"
 	"backend/src/repos"
 	"backend/src/services"
@@ -19,29 +20,107 @@ import (
 	"go.uber.org/zap"
 )
 
+// SharedWithMeHandler returns files shared with the user by others
+// @Summary List files shared with user
+// @Description Returns files where shared_with = username and permission != 'owner'
+// @Tags file
+// @Produce json
+// @Param username query string true "Username to list files shared with"
+// @Success 200 {array} dto.UserFile "List of files shared with user"
+// @Failure 400 {object} utils.APIError "Missing username"
+// @Failure 500 {object} utils.APIError "Internal server error"
+// @Router /api/v1/file/shared-with-me [get]
+func SharedWithMeHandler(w http.ResponseWriter, r *http.Request) {
+	username := r.URL.Query().Get("username")
+	if username == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username required")
+		return
+	}
+	db, err := utils.ConnectPostgres()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
+		return
+	}
+	defer db.Close()
+	rows, err := db.Query(`SELECT id, username, file_id, filename, path, permission, shared_with, shared_by, is_public, download_count, created_at FROM user_files WHERE username = $1 AND shared_by != '' AND permission != 'owner'`, username)
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to fetch shared files", err.Error())
+		return
+	}
+	defer rows.Close()
+	var files []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var uname, fileId, filename, permission, sharedWith, sharedBy string
+		var path sql.NullString
+		var isPublic bool
+		var downloadCount int
+		var createdAt string
+		if err := rows.Scan(&id, &uname, &fileId, &filename, &path, &permission, &sharedWith, &sharedBy, &isPublic, &downloadCount, &createdAt); err != nil {
+			utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to scan row", err.Error())
+			return
+		}
+		files = append(files, map[string]interface{}{
+			"id":       id,
+			"username": uname,
+			"fileId":   fileId,
+			"filename": filename,
+			"path": func() string {
+				if path.Valid {
+					return path.String
+				}
+				return ""
+			}(),
+			"permission":    permission,
+			"sharedWith":    sharedWith,
+			"sharedBy":      sharedBy,
+			"isPublic":      isPublic,
+			"downloadCount": downloadCount,
+			"createdAt":     createdAt,
+		})
+	}
+	utils.WriteAPIResponse(w, http.StatusOK, "Files shared with user fetched", files)
+}
+
 // PublicShareHandler shares a file or folder publicly, generating a public link
-// @Summary Share file or folder publicly
-// @Description Generates a public link for a file or folder, accessible to anyone with the link
+// @Summary Share file publicly by filename
+// @Description Generates a public link for a file, accessible to anyone with the link. Accepts filename and username in request body.
 // @Tags file
 // @Accept json
 // @Produce json
-// @Param shareRequest body dto.PublicShareRequest true "Public share payload (fileId/folderId, isFolder, username)"
+// @Param payload body dto.PublicShareByFilenameRequest true "Public share payload (filename, username)"
+// @example { "filename": "string", "username": "string" }
 // @Success 200 {object} dto.PublicShareResponse "Public share link generated"
 // @Failure 400 {object} utils.APIError "Invalid request"
-// @Failure 404 {object} utils.APIError "File/Folder not found or not owned"
+// @Failure 404 {object} utils.APIError "File not found or not owned"
 // @Failure 500 {object} utils.APIError "Internal server error"
 // @Router /api/v1/file/public-share [post]
 func PublicShareHandler(w http.ResponseWriter, r *http.Request) {
-	var req dto.PublicShareRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var payload struct {
+		Filename string `json:"filename"`
+		Username string `json:"username"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid request payload", err.Error())
 		return
 	}
-	if req.FileId == "" || req.Username == "" {
-		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "fileId/folderId, username required")
+	if payload.Filename == "" || payload.Username == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "filename, username required")
 		return
 	}
-	// Call service to generate public token and persist mapping
+	db, err := utils.ConnectPostgres()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
+		return
+	}
+	defer db.Close()
+	var fileId string
+	err = db.QueryRow("SELECT file_id FROM user_files WHERE username = $1 AND filename = $2 AND permission = 'owner'", payload.Username, payload.Filename).Scan(&fileId)
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusNotFound, "File not found or not owned", "File not found or not owned by user")
+		return
+	}
+	req := dto.PublicShareRequest{FileId: fileId, Username: payload.Username}
 	publicShareService := servicesImpl.NewPublicShareService()
 	resp, err := publicShareService.SharePublicly(req)
 	if err != nil {
@@ -132,6 +211,47 @@ func DeleteFileHandler(w http.ResponseWriter, r *http.Request) {
 	utils.WriteAPIResponse(w, http.StatusOK, "File deleted successfully", map[string]interface{}{"fileId": req.FileId})
 }
 
+// DeleteFileByFilenameHandler deletes a file for a user by filename (supports copy logic)
+// @Summary Delete a file by filename
+// @Description Deletes a file for a user by filename. Supports deletion of duplicate files uploaded as copies.
+// @Tags file
+// @Accept json
+// @Produce json
+// @Param deleteRequest body dto.DeleteFileByFilenameRequest true "Delete file by filename payload (filename, username)"
+// @Success 200 {object} utils.APIResponse "File deleted successfully"
+// @Failure 400 {object} utils.APIError "Invalid request"
+// @Failure 404 {object} utils.APIError "File not found or not owned"
+// @Failure 500 {object} utils.APIError "Internal server error"
+// @Router /api/v1/file/delete-filename [post]
+func DeleteFileByFilenameHandler(w http.ResponseWriter, r *http.Request) {
+	var req dto.DeleteFileByFilenameRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid request payload", err.Error())
+		return
+	}
+	if req.Filename == "" || req.Username == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "filename, username required")
+		return
+	}
+	db, err := utils.ConnectPostgres()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
+		return
+	}
+	defer db.Close()
+	fileCrudRepo := repos.FileCrudRepo{Db: db}
+	err = fileCrudRepo.DeleteFileByFilename(req.Username, req.Filename)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			utils.WriteAPIError(w, http.StatusNotFound, "File not found or not owned", "File not found or not owned by user")
+		} else {
+			utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to delete file", err.Error())
+		}
+		return
+	}
+	utils.WriteAPIResponse(w, http.StatusOK, "File deleted successfully", map[string]interface{}{"filename": req.Filename})
+}
+
 // RenameFileHandler renames a file owned by the user
 // @Summary Rename a file
 // @Description Renames a file owned by the user
@@ -196,7 +316,7 @@ func OwnedFilesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 	fileCrudRepo := repos.FileCrudRepo{Db: db}
-	rows, err := fileCrudRepo.Db.Query(`SELECT id, username, file_id, filename, permission FROM user_files WHERE username = $1 AND permission = 'owner'`, username)
+	rows, err := fileCrudRepo.Db.Query(`SELECT id, username, file_id, filename, permission, path FROM user_files WHERE username = $1 AND permission = 'owner'`, username)
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to fetch owned files", err.Error())
 		return
@@ -206,7 +326,8 @@ func OwnedFilesHandler(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var id int
 		var uname, fileId, filename, permission string
-		if err := rows.Scan(&id, &uname, &fileId, &filename, &permission); err != nil {
+		var path sql.NullString
+		if err := rows.Scan(&id, &uname, &fileId, &filename, &permission, &path); err != nil {
 			utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to scan row", err.Error())
 			return
 		}
@@ -216,6 +337,13 @@ func OwnedFilesHandler(w http.ResponseWriter, r *http.Request) {
 			"fileId":     fileId,
 			"filename":   filename,
 			"permission": permission,
+			"path": func() string {
+				if path.Valid {
+					return path.String
+				} else {
+					return "/home"
+				}
+			}(),
 		})
 	}
 	utils.WriteAPIResponse(w, http.StatusOK, "Owned files fetched", files)
@@ -279,12 +407,13 @@ var fileService services.FileServiceInterface = &servicesImpl.FileService{}
 
 // FileMetaUploadHandler handles file upload with metadata
 // @Summary Upload file with metadata
-// @Description Accepts file and metadata, saves both to database
+// @Description Accepts file and metadata, saves both to database. Supports optional folder path.
 // @Tags file
 // @Accept multipart/form-data
 // @Produce json
 // @Param file formData file true "File to upload"
 // @Param uploader formData string true "Uploader (username)"
+// @Param path formData string false "Folder path (optional, defaults to /home)"
 // @Success 201 {object} utils.APIResponse "File and metadata uploaded"
 // @Failure 400 {object} utils.APIError "Bad request"
 // @Failure 500 {object} utils.APIError "Internal server error"
@@ -317,6 +446,40 @@ func FileMetaUploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
+	// --- STORAGE QUOTA ENFORCEMENT ---
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to load config", err.Error())
+		return
+	}
+	username := r.FormValue("username")
+	// Use uploader for quota check if username is missing
+	if username == "" {
+		username = uploader
+	}
+	if username == "" {
+		logger.Error("Missing username", zap.String("requestID", requestID))
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username required for quota check")
+		return
+	}
+	db, err := utils.ConnectPostgres()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
+		return
+	}
+	defer db.Close()
+	fileCrudRepo := repos.FileCrudRepo{Db: db}
+	usedMB, err := fileCrudRepo.GetUserStorageUsedMB(username)
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to get storage usage", err.Error())
+		return
+	}
+	if usedMB+float64(handler.Size)/(1024*1024) > float64(cfg.StorageQuotaMB) {
+		utils.WriteAPIError(w, http.StatusForbidden, "Storage quota exceeded", "User quota: "+fmt.Sprintf("%.2f", float64(cfg.StorageQuotaMB))+" MB, Used: "+fmt.Sprintf("%.2f", usedMB+float64(handler.Size)/(1024*1024))+" MB")
+		return
+	}
+	// --- END STORAGE QUOTA ENFORCEMENT ---
+
 	// Use CoreUpload for modular upload logic (deduplication, metadata, and saving)
 	filename, mimetype, hash, savedPath, err := servicesImpl.CoreUpload(file, handler.Filename, r)
 	if err != nil {
@@ -336,21 +499,36 @@ func FileMetaUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Insert corrected filename into user_files
+	// Correct the extension based on MIME
+	originalExt := filepath.Ext(handler.Filename)
+	correctedFilename := handler.Filename
+	if originalExt != "" && filename != hash {
+		// filename is hashSum + ext, so ext is the correct extension
+		correctExt := filepath.Ext(filename)
+		if correctExt != "" && correctExt != originalExt {
+			correctedFilename = strings.TrimSuffix(handler.Filename, originalExt) + correctExt
+		}
+	}
+	// Use service for DB interaction
+	userFileCrudService := servicesImpl.NewUserFileCrudService()
+	// Check if user already has this file_id
 	db, dbErr := utils.ConnectPostgres()
+	var dummy int
 	if dbErr == nil {
 		defer db.Close()
-		fileCrudRepo := repos.FileCrudRepo{Db: db}
-		// Correct the extension based on MIME
-		originalExt := filepath.Ext(handler.Filename)
-		correctedFilename := handler.Filename
-		if originalExt != "" && filename != hash {
-			// filename is hashSum + ext, so ext is the correct extension
-			correctExt := filepath.Ext(filename)
-			if correctExt != "" && correctExt != originalExt {
-				correctedFilename = strings.TrimSuffix(handler.Filename, originalExt) + correctExt
-			}
+		row := db.QueryRow("SELECT 1 FROM user_files WHERE username = $1 AND file_id = $2", username, hash)
+		if row.Scan(&dummy) == nil {
+			correctedFilename, _ = userFileCrudService.Repo.GetNextCopyFilename(username, handler.Filename)
 		}
-		_ = fileCrudRepo.InsertUserFile(uploader, hash, correctedFilename, "owner")
+	}
+	folderPath := r.FormValue("path")
+	if folderPath == "" {
+		folderPath = "/home"
+	}
+	// Add InsertUserFileWithPath to service/repo
+	err = userFileCrudService.InsertUserFileWithPath(username, hash, correctedFilename, "owner", folderPath)
+	if err != nil {
+		logger.Error("Failed to insert user_file with path", zap.String("requestID", requestID), zap.Error(err))
 	}
 	logger.Info("File and metadata uploaded", zap.String("requestID", requestID), zap.String("filename", handler.Filename), zap.String("sha256", hash), zap.String("uploader", uploader))
 
@@ -497,6 +675,35 @@ func FileUploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
+	// --- STORAGE QUOTA ENFORCEMENT ---
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to load config", err.Error())
+		return
+	}
+	username := r.FormValue("username")
+	if username == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username required for quota check")
+		return
+	}
+	db, err := utils.ConnectPostgres()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
+		return
+	}
+	defer db.Close()
+	fileCrudRepo := repos.FileCrudRepo{Db: db}
+	usedMB, err := fileCrudRepo.GetUserStorageUsedMB(username)
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to get storage usage", err.Error())
+		return
+	}
+	if usedMB+float64(handler.Size)/(1024*1024) > float64(cfg.StorageQuotaMB) {
+		utils.WriteAPIError(w, http.StatusForbidden, "Storage quota exceeded", "User quota: "+fmt.Sprintf("%.2f", float64(cfg.StorageQuotaMB))+" MB, Used: "+fmt.Sprintf("%.2f", usedMB+float64(handler.Size)/(1024*1024))+" MB")
+		return
+	}
+	// --- END STORAGE QUOTA ENFORCEMENT ---
+
 	// Use CoreUpload for modular upload logic (deduplication, metadata, and saving)
 	filename, mimetype, hash, savedPath, err := servicesImpl.CoreUpload(file, handler.Filename, r)
 	if err != nil {
@@ -504,15 +711,22 @@ func FileUploadHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to upload file", err.Error())
 		return
 	}
-	isDuplicate, refID := fileService.CheckDuplicate(hash)
+	isDuplicate, _ := fileService.CheckDuplicate(hash)
 	if isDuplicate {
 		logger.Info("Duplicate file detected", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("sha256", hash))
-		resp := map[string]interface{}{
-			"message":      "Duplicate file detected. Reference stored.",
-			"reference_id": refID,
-			"sha256":       hash,
+		// Generate next copy filename for this user
+		copyFilename, copyErr := fileCrudRepo.GetNextCopyFilename(username, handler.Filename)
+		if copyErr != nil {
+			utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to generate copy filename", copyErr.Error())
+			return
 		}
-		utils.WriteAPIResponse(w, http.StatusOK, "Duplicate file", resp)
+		_ = fileCrudRepo.InsertUserFile(username, hash, copyFilename, "owner")
+		resp := map[string]interface{}{
+			"message":  "Duplicate file uploaded as copy.",
+			"filename": copyFilename,
+			"sha256":   hash,
+		}
+		utils.WriteAPIResponse(w, http.StatusCreated, "Duplicate file uploaded as copy", resp)
 		return
 	}
 	fileService.StoreFileMetadata(filename, mimetype, hash, savedPath, "")
@@ -522,4 +736,38 @@ func FileUploadHandler(w http.ResponseWriter, r *http.Request) {
 		"sha256":  hash,
 	}
 	utils.WriteAPIResponse(w, http.StatusCreated, "File uploaded", resp)
+}
+
+// GetUserStorageQuotaHandler returns the storage quota used by a user
+// @Summary Get user storage quota used
+// @Description Returns the storage quota used by the user in MB
+// @Tags file
+// @Produce json
+// @Param username query string true "Username to check storage quota for"
+// @Success 200 {object} map[string]interface{} "Storage quota used"
+// @Failure 400 {object} utils.APIError "Missing username"
+// @Failure 500 {object} utils.APIError "Internal server error"
+// @Router /api/v1/file/storage-quota [get]
+func GetUserStorageQuotaHandler(w http.ResponseWriter, r *http.Request) {
+	username := r.URL.Query().Get("username")
+	if username == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username required")
+		return
+	}
+	db, err := utils.ConnectPostgres()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
+		return
+	}
+	defer db.Close()
+	fileCrudRepo := repos.FileCrudRepo{Db: db}
+	usedMB, err := fileCrudRepo.GetUserStorageUsedMB(username)
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to get storage usage", err.Error())
+		return
+	}
+	utils.WriteAPIResponse(w, http.StatusOK, "User storage quota fetched", map[string]interface{}{
+		"username": username,
+		"usedMB":   usedMB,
+	})
 }
