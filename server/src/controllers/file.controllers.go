@@ -258,7 +258,7 @@ func DeleteFileByFilenameHandler(w http.ResponseWriter, r *http.Request) {
 // @Tags file
 // @Accept json
 // @Produce json
-// @Param renameRequest body dto.FileRenameRequest true "Rename file payload"
+// @Param renameRequest body dto.FileRenameRequest true "Rename file payload. Required: filename, newName, username."
 // @Success 200 {object} utils.APIResponse "File renamed successfully"
 // @Failure 400 {object} utils.APIError "Invalid request"
 // @Failure 404 {object} utils.APIError "File not found or not owned"
@@ -270,8 +270,8 @@ func RenameFileHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid request payload", err.Error())
 		return
 	}
-	if req.FileID == "" || req.NewName == "" || req.Username == "" {
-		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "fileId, newName, username required")
+	if req.Filename == "" || req.NewName == "" || req.Username == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "filename, newName, username required")
 		return
 	}
 	db, err := utils.ConnectPostgres()
@@ -281,7 +281,7 @@ func RenameFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 	fileCrudRepo := repos.FileCrudRepo{Db: db}
-	err = fileCrudRepo.RenameFile(req.FileID, req.NewName, req.Username)
+	err = fileCrudRepo.RenameFileByFilename(req.Username, req.Filename, req.NewName)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			utils.WriteAPIError(w, http.StatusNotFound, "File not found or not owned", "File not found or not owned by user")
@@ -290,7 +290,7 @@ func RenameFileHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	utils.WriteAPIResponse(w, http.StatusOK, "File renamed successfully", map[string]interface{}{"fileId": req.FileID, "newName": req.NewName})
+	utils.WriteAPIResponse(w, http.StatusOK, "File renamed successfully", map[string]interface{}{"filename": req.Filename, "newName": req.NewName})
 }
 
 // OwnedFilesHandler returns files owned by the user (permission = 'owner')
@@ -407,14 +407,15 @@ var fileService services.FileServiceInterface = &servicesImpl.FileService{}
 
 // FileMetaUploadHandler handles file upload with metadata
 // @Summary Upload file with metadata
-// @Description Accepts file and metadata, saves both to database. Supports optional folder path.
+// @Summary Upload one or more files with metadata
+// @Description Accepts multiple files and metadata, saves all to database. Supports optional folder path.
 // @Tags file
 // @Accept multipart/form-data
 // @Produce json
-// @Param file formData file true "File to upload"
+// @Param file formData file true "Files to upload (multiple allowed)"
 // @Param uploader formData string true "Uploader (username)"
 // @Param path formData string false "Folder path (optional, defaults to /home)"
-// @Success 201 {object} utils.APIResponse "File and metadata uploaded"
+// @Success 201 {object} utils.APIResponse "Files and metadata uploaded"
 // @Failure 400 {object} utils.APIError "Bad request"
 // @Failure 500 {object} utils.APIError "Internal server error"
 // @Router /api/v1/file/upload-meta [post]
@@ -438,22 +439,18 @@ func FileMetaUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, handler, err := r.FormFile("file")
-	if err != nil {
-		logger.Error("File not found in request", zap.String("requestID", requestID), zap.Error(err))
-		utils.WriteAPIError(w, http.StatusBadRequest, "File not found in request", err.Error())
+	files := r.MultipartForm.File["file"]
+	if len(files) == 0 {
+		logger.Error("No files found in request", zap.String("requestID", requestID))
+		utils.WriteAPIError(w, http.StatusBadRequest, "No files found in request", "No files uploaded")
 		return
 	}
-	defer file.Close()
-
-	// --- STORAGE QUOTA ENFORCEMENT ---
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to load config", err.Error())
 		return
 	}
 	username := r.FormValue("username")
-	// Use uploader for quota check if username is missing
 	if username == "" {
 		username = uploader
 	}
@@ -474,69 +471,81 @@ func FileMetaUploadHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to get storage usage", err.Error())
 		return
 	}
-	if usedMB+float64(handler.Size)/(1024*1024) > float64(cfg.StorageQuotaMB) {
-		utils.WriteAPIError(w, http.StatusForbidden, "Storage quota exceeded", "User quota: "+fmt.Sprintf("%.2f", float64(cfg.StorageQuotaMB))+" MB, Used: "+fmt.Sprintf("%.2f", usedMB+float64(handler.Size)/(1024*1024))+" MB")
-		return
-	}
-	// --- END STORAGE QUOTA ENFORCEMENT ---
-
-	// Use CoreUpload for modular upload logic (deduplication, metadata, and saving)
-	filename, mimetype, hash, savedPath, err := servicesImpl.CoreUpload(file, handler.Filename, r)
-	if err != nil {
-		logger.Error("Failed to upload file", zap.String("requestID", requestID), zap.Error(err))
-		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to upload file", err.Error())
-		return
-	}
-	log.Print(uploader)
-	err = fileService.StoreFileMetadata(filename, mimetype, hash, savedPath, uploader)
-	if err != nil {
-		logger.Error("Failed to save file metadata", zap.String("requestID", requestID), zap.Error(err))
-		if err == sql.ErrNoRows {
-			utils.WriteAPIError(w, http.StatusBadRequest, "Uploader does not exist", "Uploader must be a registered user")
-		} else {
-			utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to save file metadata", err.Error())
+	var uploadedFiles []map[string]interface{}
+	for _, handler := range files {
+		file, err := handler.Open()
+		if err != nil {
+			logger.Error("File open error", zap.String("requestID", requestID), zap.String("filename", handler.Filename), zap.Error(err))
+			continue
 		}
-		return
-	}
-	// Insert corrected filename into user_files
-	// Correct the extension based on MIME
-	originalExt := filepath.Ext(handler.Filename)
-	correctedFilename := handler.Filename
-	if originalExt != "" && filename != hash {
-		// filename is hashSum + ext, so ext is the correct extension
-		correctExt := filepath.Ext(filename)
-		if correctExt != "" && correctExt != originalExt {
-			correctedFilename = strings.TrimSuffix(handler.Filename, originalExt) + correctExt
+		defer file.Close()
+		if usedMB+float64(handler.Size)/(1024*1024) > float64(cfg.StorageQuotaMB) {
+			logger.Error("Storage quota exceeded", zap.String("requestID", requestID), zap.String("filename", handler.Filename))
+			uploadedFiles = append(uploadedFiles, map[string]interface{}{
+				"filename": handler.Filename,
+				"error":    "Storage quota exceeded",
+			})
+			continue
 		}
-	}
-	// Use service for DB interaction
-	userFileCrudService := servicesImpl.NewUserFileCrudService()
-	// Check if user already has this file_id
-	db, dbErr := utils.ConnectPostgres()
-	var dummy int
-	if dbErr == nil {
-		defer db.Close()
-		row := db.QueryRow("SELECT 1 FROM user_files WHERE username = $1 AND file_id = $2", username, hash)
-		if row.Scan(&dummy) == nil {
-			correctedFilename, _ = userFileCrudService.Repo.GetNextCopyFilename(username, handler.Filename)
+		filename, mimetype, hash, savedPath, err := servicesImpl.CoreUpload(file, handler.Filename, r)
+		if err != nil {
+			logger.Error("Failed to upload file", zap.String("requestID", requestID), zap.String("filename", handler.Filename), zap.Error(err))
+			uploadedFiles = append(uploadedFiles, map[string]interface{}{
+				"filename": handler.Filename,
+				"error":    err.Error(),
+			})
+			continue
 		}
+		log.Print(uploader)
+		err = fileService.StoreFileMetadata(filename, mimetype, hash, savedPath, uploader)
+		if err != nil {
+			logger.Error("Failed to save file metadata", zap.String("requestID", requestID), zap.Error(err))
+			uploadedFiles = append(uploadedFiles, map[string]interface{}{
+				"filename": handler.Filename,
+				"error":    err.Error(),
+			})
+			continue
+		}
+		// Insert corrected filename into user_files
+		originalExt := filepath.Ext(handler.Filename)
+		correctedFilename := handler.Filename
+		if originalExt != "" && filename != hash {
+			correctExt := filepath.Ext(filename)
+			if correctExt != "" && correctExt != originalExt {
+				correctedFilename = strings.TrimSuffix(handler.Filename, originalExt) + correctExt
+			}
+		}
+		userFileCrudService := servicesImpl.NewUserFileCrudService()
+		db, dbErr := utils.ConnectPostgres()
+		var dummy int
+		if dbErr == nil {
+			defer db.Close()
+			row := db.QueryRow("SELECT 1 FROM user_files WHERE username = $1 AND file_id = $2", username, hash)
+			if row.Scan(&dummy) == nil {
+				correctedFilename, _ = userFileCrudService.Repo.GetNextCopyFilename(username, handler.Filename)
+			}
+		}
+		folderPath := r.FormValue("path")
+		if folderPath == "" {
+			folderPath = "/home"
+		}
+		err = userFileCrudService.InsertUserFileWithPath(username, hash, correctedFilename, "owner", folderPath)
+		if err != nil {
+			logger.Error("Failed to insert user_file with path", zap.String("requestID", requestID), zap.Error(err))
+			uploadedFiles = append(uploadedFiles, map[string]interface{}{
+				"filename": handler.Filename,
+				"error":    err.Error(),
+			})
+			continue
+		}
+		logger.Info("File and metadata uploaded", zap.String("requestID", requestID), zap.String("filename", handler.Filename), zap.String("sha256", hash), zap.String("uploader", uploader))
+		uploadedFiles = append(uploadedFiles, map[string]interface{}{
+			"message":  "File and metadata uploaded successfully.",
+			"filename": correctedFilename,
+			"sha256":   hash,
+		})
 	}
-	folderPath := r.FormValue("path")
-	if folderPath == "" {
-		folderPath = "/home"
-	}
-	// Add InsertUserFileWithPath to service/repo
-	err = userFileCrudService.InsertUserFileWithPath(username, hash, correctedFilename, "owner", folderPath)
-	if err != nil {
-		logger.Error("Failed to insert user_file with path", zap.String("requestID", requestID), zap.Error(err))
-	}
-	logger.Info("File and metadata uploaded", zap.String("requestID", requestID), zap.String("filename", handler.Filename), zap.String("sha256", hash), zap.String("uploader", uploader))
-
-	resp := map[string]interface{}{
-		"message": "File and metadata uploaded successfully.",
-		"sha256":  hash,
-	}
-	utils.WriteAPIResponse(w, http.StatusCreated, "File and metadata uploaded", resp)
+	utils.WriteAPIResponse(w, http.StatusCreated, "Files and metadata processed", uploadedFiles)
 }
 
 // @Summary Get file by path
@@ -647,11 +656,14 @@ func ServeFileByPathViewHandler(w http.ResponseWriter, r *http.Request) {
 // @Summary Upload a file
 // @Description Uploads a file, validates MIME type, and deduplicates using SHA-256 hash. Returns reference if duplicate.
 // @Tags file
+// @Summary Upload one or more files
+// @Description Upload multiple files. Each file is processed and returns status for each.
+// @Tags file
 // @Accept multipart/form-data
 // @Produce json
-// @Param file formData file true "File to upload"
-// @Success 201 {object} utils.APIResponse "File uploaded successfully"
-// @Success 200 {object} utils.APIResponse "Duplicate file detected"
+// @Param file formData file true "Files to upload (multiple allowed)"
+// @Param username formData string true "Uploader (username)"
+// @Success 201 {object} utils.APIResponse "Files processed"
 // @Failure 400 {object} utils.APIError "Bad request or MIME type mismatch"
 // @Failure 500 {object} utils.APIError "Internal server error"
 // @Router /api/v1/file/upload [post]
@@ -667,15 +679,12 @@ func FileUploadHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Failed to parse form", err.Error())
 		return
 	}
-	file, handler, err := r.FormFile("file")
-	if err != nil {
-		logger.Error("File not found in request", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.Error(err))
-		utils.WriteAPIError(w, http.StatusBadRequest, "File not found in request", err.Error())
+	files := r.MultipartForm.File["file"]
+	if len(files) == 0 {
+		logger.Error("No files found in request", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr))
+		utils.WriteAPIError(w, http.StatusBadRequest, "No files found in request", "No files uploaded")
 		return
 	}
-	defer file.Close()
-
-	// --- STORAGE QUOTA ENFORCEMENT ---
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to load config", err.Error())
@@ -698,44 +707,57 @@ func FileUploadHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to get storage usage", err.Error())
 		return
 	}
-	if usedMB+float64(handler.Size)/(1024*1024) > float64(cfg.StorageQuotaMB) {
-		utils.WriteAPIError(w, http.StatusForbidden, "Storage quota exceeded", "User quota: "+fmt.Sprintf("%.2f", float64(cfg.StorageQuotaMB))+" MB, Used: "+fmt.Sprintf("%.2f", usedMB+float64(handler.Size)/(1024*1024))+" MB")
-		return
-	}
-	// --- END STORAGE QUOTA ENFORCEMENT ---
-
-	// Use CoreUpload for modular upload logic (deduplication, metadata, and saving)
-	filename, mimetype, hash, savedPath, err := servicesImpl.CoreUpload(file, handler.Filename, r)
-	if err != nil {
-		logger.Error("Failed to upload file", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.Error(err))
-		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to upload file", err.Error())
-		return
-	}
-	isDuplicate, _ := fileService.CheckDuplicate(hash)
-	if isDuplicate {
-		logger.Info("Duplicate file detected", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("sha256", hash))
-		// Generate next copy filename for this user
-		copyFilename, copyErr := fileCrudRepo.GetNextCopyFilename(username, handler.Filename)
-		if copyErr != nil {
-			utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to generate copy filename", copyErr.Error())
-			return
+	var uploadedFiles []map[string]interface{}
+	for _, handler := range files {
+		file, err := handler.Open()
+		if err != nil {
+			logger.Error("File open error", zap.String("requestID", requestID), zap.String("filename", handler.Filename), zap.Error(err))
+			continue
 		}
-		_ = fileCrudRepo.InsertUserFile(username, hash, copyFilename, "owner")
-		resp := map[string]interface{}{
-			"message":  "Duplicate file uploaded as copy.",
-			"filename": copyFilename,
+		defer file.Close()
+		if usedMB+float64(handler.Size)/(1024*1024) > float64(cfg.StorageQuotaMB) {
+			logger.Error("Storage quota exceeded", zap.String("requestID", requestID), zap.String("filename", handler.Filename))
+			uploadedFiles = append(uploadedFiles, map[string]interface{}{
+				"filename": handler.Filename,
+				"error":    "Storage quota exceeded",
+			})
+			continue
+		}
+		filename, mimetype, hash, savedPath, err := servicesImpl.CoreUpload(file, handler.Filename, r)
+		if err != nil {
+			logger.Error("Failed to upload file", zap.String("requestID", requestID), zap.String("filename", handler.Filename), zap.Error(err))
+			uploadedFiles = append(uploadedFiles, map[string]interface{}{
+				"filename": handler.Filename,
+				"error":    err.Error(),
+			})
+			continue
+		}
+		isDuplicate, _ := fileService.CheckDuplicate(hash)
+		if isDuplicate {
+			copyFilename, copyErr := fileCrudRepo.GetNextCopyFilename(username, handler.Filename)
+			if copyErr != nil {
+				uploadedFiles = append(uploadedFiles, map[string]interface{}{
+					"filename": handler.Filename,
+					"error":    copyErr.Error(),
+				})
+				continue
+			}
+			_ = fileCrudRepo.InsertUserFile(username, hash, copyFilename, "owner")
+			uploadedFiles = append(uploadedFiles, map[string]interface{}{
+				"message":  "Duplicate file uploaded as copy.",
+				"filename": copyFilename,
+				"sha256":   hash,
+			})
+			continue
+		}
+		fileService.StoreFileMetadata(filename, mimetype, hash, savedPath, "")
+		uploadedFiles = append(uploadedFiles, map[string]interface{}{
+			"message":  "File uploaded successfully.",
+			"filename": filename,
 			"sha256":   hash,
-		}
-		utils.WriteAPIResponse(w, http.StatusCreated, "Duplicate file uploaded as copy", resp)
-		return
+		})
 	}
-	fileService.StoreFileMetadata(filename, mimetype, hash, savedPath, "")
-	logger.Info("File uploaded successfully", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("filePath", savedPath))
-	resp := map[string]interface{}{
-		"message": "File uploaded successfully.",
-		"sha256":  hash,
-	}
-	utils.WriteAPIResponse(w, http.StatusCreated, "File uploaded", resp)
+	utils.WriteAPIResponse(w, http.StatusCreated, "Files processed", uploadedFiles)
 }
 
 // GetUserStorageQuotaHandler returns the storage quota used by a user

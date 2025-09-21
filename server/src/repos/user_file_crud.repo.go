@@ -87,22 +87,18 @@ func (r *FileCrudRepo) GetNextCopyFilename(username, baseFilename string) (strin
 	return fmt.Sprintf("%s_copy(%d)%s", name, maxCopy+1, ext), nil
 }
 
-func (r *FileCrudRepo) RenameFile(fileId string, newName string, username string) error {
+func (r *FileCrudRepo) RenameFileByFilename(username, filename, newName string) error {
 	// Get current filename for extension
 	var currentFilename string
-	err := r.Db.QueryRow("SELECT filename FROM user_files WHERE file_id = $1 AND username = $2 AND permission = 'owner'", fileId, username).Scan(&currentFilename)
+	err := r.Db.QueryRow("SELECT filename FROM user_files WHERE username = $1 AND filename = $2 AND permission = 'owner'", username, filename).Scan(&currentFilename)
 	if err != nil {
 		return err
 	}
 	// Extract extension
 	ext := ""
-	if dot := len(currentFilename) - 1 - len(currentFilename[:len(currentFilename)-1]); dot >= 0 {
-		for i := len(currentFilename) - 1; i >= 0; i-- {
-			if currentFilename[i] == '.' {
-				ext = currentFilename[i:]
-				break
-			}
-		}
+	dot := strings.LastIndex(currentFilename, ".")
+	if dot != -1 {
+		ext = currentFilename[dot:]
 	}
 	// If no extension, just use newName
 	finalName := newName
@@ -110,7 +106,7 @@ func (r *FileCrudRepo) RenameFile(fileId string, newName string, username string
 		finalName = newName + ext
 	}
 	// Update filename in user_files
-	res, err := r.Db.Exec("UPDATE user_files SET filename = $1 WHERE file_id = $2 AND username = $3 AND permission = 'owner'", finalName, fileId, username)
+	res, err := r.Db.Exec("UPDATE user_files SET filename = $1 WHERE username = $2 AND filename = $3 AND permission = 'owner'", finalName, username, filename)
 	if err != nil {
 		return err
 	}

@@ -48,9 +48,16 @@ func (s *AuthService) RegisterUser(req dto.RegisterRequest, logger *zap.Logger, 
 		return dto.RegisterResponse{}, err
 	}
 	logger.Info("Registered new user", zap.String("requestID", requestID), zap.String("userID", userID), zap.String("username", username), zap.String("email", email))
+	// Generate JWT token for new user
+	token, err := utils.GenerateJWT(username, email, false)
+	if err != nil {
+		logger.Error("Failed to generate token after registration", zap.String("requestID", requestID), zap.Error(err))
+		return dto.RegisterResponse{Username: username, Email: email}, nil
+	}
 	return dto.RegisterResponse{
 		Username: username,
 		Email:    email,
+		Token:    token,
 	}, nil
 }
 
@@ -70,6 +77,10 @@ func (s *AuthService) LoginUser(req dto.LoginRequest, logger *zap.Logger, reques
 		logger.Error("Failed to generate token", zap.String("requestID", requestID), zap.Error(err))
 		return dto.LoginResponse{}, errors.New("failed to generate token")
 	}
+	role := "user"
+	if isAdmin {
+		role = "admin"
+	}
 	logger.Info("Login successful", zap.String("requestID", requestID), zap.String("username", username), zap.String("email", req.Email))
-	return dto.LoginResponse{Token: token}, nil
+	return dto.LoginResponse{Username: username, Email: req.Email, Token: token, Role: role}, nil
 }
