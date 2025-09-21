@@ -522,7 +522,6 @@ export default function Page() {
               </CardContent>
             </Card>
 
-
             {/* Quick Actions */}
             <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-sm">
               <CardHeader>

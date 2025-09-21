@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import {
-  Search,
   Filter,
   Grid3X3,
   List,
@@ -27,13 +26,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -263,22 +256,24 @@ export default function RecentFilesPage() {
 
   return (
     <TooltipProvider>
-      <div className="p-6">
+      <div className="p-3 sm:p-4 lg:p-6">
         {/* Header Section */}
         <div className="mb-8">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-white mb-2 flex items-center">
-                <Clock className="w-8 h-8 mr-3" />
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div className="w-full lg:w-auto">
+              <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 flex items-center">
+                <Clock className="w-6 h-6 sm:w-8 sm:h-8 mr-2 sm:mr-3" />
                 Recent Files
               </h1>
-              <p className="text-gray-400">
+              <p className="text-sm sm:text-base text-gray-400">
                 Files you've recently opened, modified, or accessed
               </p>
             </div>
-            <div className="flex items-center gap-2 text-sm">
-              <Calendar className="w-4 h-4 text-gray-400" />
-              <span className="text-gray-400">Last 30 days</span>
+            <div className="flex items-center gap-2 text-sm w-full lg:w-auto justify-between lg:justify-end">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-gray-400" />
+                <span className="text-gray-400">Last 30 days</span>
+              </div>
               <Badge
                 variant="secondary"
                 className="bg-[#6e73fa]/20 text-[#6e73fa]"
@@ -291,108 +286,112 @@ export default function RecentFilesPage() {
 
         {/* Controls Section */}
         <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-sm mb-6">
-          <CardContent className="py-1 px-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <CardContent className="py-1 px-2 sm:px-4">
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
               {/* Search and Filters */}
-              <div className="flex items-center gap-3 flex-1">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1 w-full">
+                {/* Filter and Sort Controls */}
+                <div className="flex flex-col md:flex-row gap-2 w-full sm:w-auto">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full md:min-w-40 bg-zinc-800/50 border-zinc-700 text-white hover:bg-zinc-700 justify-start"
+                      >
+                        <Filter className="w-4 h-4 mr-2 flex-shrink-0" />
+                        <span className="truncate">
+                          {fileTypeOptions.find(opt => opt.value === filterType)
+                            ?.label || 'All Types'}
+                        </span>
+                        <ChevronDown className="w-4 h-4 ml-auto flex-shrink-0" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-56 bg-zinc-800 border-zinc-700">
+                      {fileTypeOptions.map(option => (
+                        <DropdownMenuItem
+                          key={option.value}
+                          onClick={() => setFilterType(option.value)}
+                          className="text-white hover:bg-zinc-700 cursor-pointer"
+                        >
+                          {option.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="min-w-40 bg-zinc-800/50 border-zinc-700 text-white hover:bg-zinc-700 justify-start"
-                    >
-                      <Filter className="w-4 h-4 mr-2 flex-shrink-0" />
-                      <span className="truncate">
-                        {fileTypeOptions.find(opt => opt.value === filterType)
-                          ?.label || 'All Types'}
-                      </span>
-                      <ChevronDown className="w-4 h-4 ml-auto flex-shrink-0" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56 bg-zinc-800 border-zinc-700">
-                    {fileTypeOptions.map(option => (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full md:min-w-48 bg-zinc-800/50 border-zinc-700 text-white hover:bg-zinc-700 justify-start"
+                      >
+                        <ArrowUpDown className="w-4 h-4 mr-2 flex-shrink-0" />
+                        <span className="truncate">
+                          {sortBy === 'modified'
+                            ? 'Recently Modified'
+                            : sortBy === 'name'
+                              ? 'Name'
+                              : sortBy === 'size'
+                                ? 'Size'
+                                : 'Type'}
+                        </span>
+                        <ChevronDown className="w-4 h-4 ml-auto flex-shrink-0" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-56 bg-zinc-800 border-zinc-700">
                       <DropdownMenuItem
-                        key={option.value}
-                        onClick={() => setFilterType(option.value)}
+                        onClick={() => setSortBy('modified')}
                         className="text-white hover:bg-zinc-700 cursor-pointer"
                       >
-                        {option.label}
+                        Recently Modified
                       </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="min-w-48 bg-zinc-800/50 border-zinc-700 text-white hover:bg-zinc-700 justify-start"
-                    >
-                      <ArrowUpDown className="w-4 h-4 mr-2 flex-shrink-0" />
-                      <span className="truncate">
-                        {sortBy === 'modified'
-                          ? 'Recently Modified'
-                          : sortBy === 'name'
-                            ? 'Name'
-                            : sortBy === 'size'
-                              ? 'Size'
-                              : 'Type'}
-                      </span>
-                      <ChevronDown className="w-4 h-4 ml-auto flex-shrink-0" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56 bg-zinc-800 border-zinc-700">
-                    <DropdownMenuItem
-                      onClick={() => setSortBy('modified')}
-                      className="text-white hover:bg-zinc-700 cursor-pointer"
-                    >
-                      Recently Modified
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setSortBy('name')}
-                      className="text-white hover:bg-zinc-700 cursor-pointer"
-                    >
-                      Name
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setSortBy('size')}
-                      className="text-white hover:bg-zinc-700 cursor-pointer"
-                    >
-                      Size
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setSortBy('type')}
-                      className="text-white hover:bg-zinc-700 cursor-pointer"
-                    >
-                      Type
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                      <DropdownMenuItem
+                        onClick={() => setSortBy('name')}
+                        className="text-white hover:bg-zinc-700 cursor-pointer"
+                      >
+                        Name
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setSortBy('size')}
+                        className="text-white hover:bg-zinc-700 cursor-pointer"
+                      >
+                        Size
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setSortBy('type')}
+                        className="text-white hover:bg-zinc-700 cursor-pointer"
+                      >
+                        Type
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
 
               {/* View Toggle */}
-              <Tabs
-                value={viewMode}
-                onValueChange={value => setViewMode(value as 'grid' | 'list')}
-              >
-                <TabsList className="bg-zinc-800/50 border border-zinc-700">
-                  <TabsTrigger
-                    value="grid"
-                    className="data-[state=active]:bg-zinc-700"
-                  >
-                    <Grid3X3 className="w-4 h-4" color="#fff" />
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="list"
-                    className="data-[state=active]:bg-zinc-700"
-                  >
-                    <List className="w-4 h-4" color="#fff" />
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <div className="flex justify-center lg:justify-end w-full lg:w-auto">
+                <Tabs
+                  value={viewMode}
+                  onValueChange={value => setViewMode(value as 'grid' | 'list')}
+                >
+                  <TabsList className="bg-zinc-800/50 border border-zinc-700">
+                    <TabsTrigger
+                      value="grid"
+                      className="data-[state=active]:bg-zinc-700"
+                    >
+                      <Grid3X3 className="w-4 h-4" color="#fff" />
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="list"
+                      className="data-[state=active]:bg-zinc-700"
+                    >
+                      <List className="w-4 h-4" color="#fff" />
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -403,7 +402,7 @@ export default function RecentFilesPage() {
         <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-sm">
           <CardContent className="p-6">
             {viewMode === 'grid' ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4">
                 {filteredFiles.map(file => {
                   const FileIcon = getFileIcon(file.type);
                   const iconColor = getFileColor(file.type);
@@ -411,21 +410,23 @@ export default function RecentFilesPage() {
                   return (
                     <ContextMenu key={file.id}>
                       <ContextMenuTrigger>
-                        <div className="group bg-zinc-800/30 hover:bg-zinc-800/50 border border-zinc-700 rounded-xl p-4 cursor-pointer transition-all hover:border-[#6e73fa]/50">
-                          <div className="flex items-start justify-between mb-3">
+                        <div className="group bg-zinc-800/30 hover:bg-zinc-800/50 border border-zinc-700 rounded-xl p-3 sm:p-4 cursor-pointer transition-all hover:border-[#6e73fa]/50">
+                          <div className="flex items-start justify-between mb-2 sm:mb-3">
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <FileIcon className={`w-8 h-8 ${iconColor}`} />
+                                <FileIcon
+                                  className={`w-6 h-6 sm:w-8 sm:h-8 ${iconColor}`}
+                                />
                               </TooltipTrigger>
                               <TooltipContent className="bg-zinc-800 border-zinc-700">
                                 <p className="text-white">{file.type} file</p>
                               </TooltipContent>
                             </Tooltip>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1 sm:gap-2">
                               {file.starred && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                                    <Star className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-400 fill-current" />
                                   </TooltipTrigger>
                                   <TooltipContent className="bg-zinc-800 border-zinc-700">
                                     <p className="text-white">Starred file</p>
@@ -437,9 +438,9 @@ export default function RecentFilesPage() {
                                   <TooltipTrigger asChild>
                                     <Badge
                                       variant="secondary"
-                                      className="text-xs bg-[#6e73fa]/20 text-[#6e73fa] cursor-help"
+                                      className="text-xs bg-[#6e73fa]/20 text-[#6e73fa] cursor-help px-1 py-0"
                                     >
-                                      <Users className="w-3 h-3 mr-1" />
+                                      <Users className="w-2 h-2 sm:w-3 sm:h-3" />
                                     </Badge>
                                   </TooltipTrigger>
                                   <TooltipContent className="bg-zinc-800 border-zinc-700">
@@ -455,23 +456,29 @@ export default function RecentFilesPage() {
                             </div>
                           </div>
                           <h3
-                            className="text-white font-medium text-sm mb-2 truncate"
+                            className="text-white font-medium text-xs sm:text-sm mb-1 sm:mb-2 truncate leading-tight"
                             title={file.name}
                           >
                             {file.name}
                           </h3>
-                          <div className="space-y-1 text-xs text-gray-400">
+                          <div className="space-y-0.5 sm:space-y-1 text-xs text-gray-400">
                             <div className="flex items-center justify-between">
-                              <span>{file.size}</span>
-                              <span>{file.type}</span>
+                              <span className="text-xs">{file.size}</span>
+                              <span className="text-xs capitalize">
+                                {file.type}
+                              </span>
                             </div>
                             <div className="flex items-center">
-                              <Clock className="w-3 h-3 mr-1" />
-                              <span>Opened {file.opened}</span>
+                              <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" />
+                              <span className="text-xs truncate">
+                                Opened {file.opened}
+                              </span>
                             </div>
                             <div className="flex items-center">
-                              <FolderOpen className="w-3 h-3 mr-1" />
-                              <span className="truncate">{file.folder}</span>
+                              <FolderOpen className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-1" />
+                              <span className="text-xs truncate">
+                                {file.folder}
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -512,15 +519,15 @@ export default function RecentFilesPage() {
                   return (
                     <ContextMenu key={file.id}>
                       <ContextMenuTrigger>
-                        <div className="group flex items-center justify-between p-4 bg-zinc-800/30 hover:bg-zinc-800/50 border border-zinc-700 rounded-lg cursor-pointer transition-all hover:border-[#6e73fa]/50 mb-2">
-                          <div className="flex items-center space-x-4 flex-1 min-w-0">
+                        <div className="group flex items-center justify-between p-3 sm:p-4 bg-zinc-800/30 hover:bg-zinc-800/50 border border-zinc-700 rounded-lg cursor-pointer transition-all hover:border-[#6e73fa]/50 mb-2">
+                          <div className="flex items-center space-x-3 sm:space-x-4 flex-1 min-w-0">
                             <FileIcon
-                              className={`w-6 h-6 ${iconColor} flex-shrink-0`}
+                              className={`w-5 h-5 sm:w-6 sm:h-6 ${iconColor} flex-shrink-0`}
                             />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <p
-                                  className="text-white font-medium text-sm truncate"
+                                  className="text-white font-medium text-sm sm:text-base truncate"
                                   title={file.name}
                                 >
                                   {file.name}
@@ -529,7 +536,7 @@ export default function RecentFilesPage() {
                                   <Star className="w-3 h-3 text-yellow-400 fill-current flex-shrink-0" />
                                 )}
                               </div>
-                              <div className="flex items-center space-x-4 text-xs text-gray-400 mt-1">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 text-xs text-gray-400 mt-1 gap-1 sm:gap-0">
                                 <span>{file.size}</span>
                                 <div className="flex items-center">
                                   <Clock className="w-3 h-3 mr-1" />
@@ -539,24 +546,26 @@ export default function RecentFilesPage() {
                                   <FolderOpen className="w-3 h-3 mr-1" />
                                   <span>{file.folder}</span>
                                 </div>
-                                <span>by {file.owner}</span>
+                                <span className="hidden sm:inline">
+                                  by {file.owner}
+                                </span>
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center space-x-3">
+                          <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
                             {file.shared && (
                               <Badge
                                 variant="secondary"
-                                className="text-xs bg-[#6e73fa]/20 text-[#6e73fa]"
+                                className="text-xs bg-[#6e73fa]/20 text-[#6e73fa] px-1 sm:px-2"
                               >
-                                <Users className="w-3 h-3 mr-1" />
-                                Shared
+                                <Users className="w-2 h-2 sm:w-3 sm:h-3 mr-0 sm:mr-1" />
+                                <span className="hidden sm:inline">Shared</span>
                               </Badge>
                             )}
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 sm:p-2"
                             >
                               <MoreHorizontal className="w-4 h-4" />
                             </Button>
@@ -633,12 +642,12 @@ export default function RecentFilesPage() {
                 )}
               </div>
             ) : filteredFiles.length === 0 ? (
-              <div className="text-center py-12">
-                <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-white font-medium mb-2">
+              <div className="text-center py-8 sm:py-12">
+                <Clock className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-white font-medium mb-2 text-sm sm:text-base">
                   No recent files found
                 </h3>
-                <p className="text-gray-400 text-sm">
+                <p className="text-gray-400 text-xs sm:text-sm mb-4">
                   {searchQuery
                     ? 'Try adjusting your search terms or filters'
                     : 'Files you open will appear here for quick access'}
@@ -650,7 +659,7 @@ export default function RecentFilesPage() {
                     setIsLoading(true);
                     setTimeout(() => setIsLoading(false), 2000);
                   }}
-                  className="mt-4 border-zinc-700 text-white hover:bg-zinc-800"
+                  className="border-zinc-700 text-white hover:bg-zinc-800 text-xs sm:text-sm"
                 >
                   Simulate Loading
                 </Button>

@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import {
   Upload,
   Search,
-  Filter,
   Grid3X3,
   List,
   MoreHorizontal,
@@ -22,20 +21,12 @@ import {
   HardDrive,
   TrendingUp,
   Users,
-  Star,
-  Plus,
   FolderPlus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import {
   ContextMenu,
@@ -44,8 +35,9 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import Link from 'next/link';
 
-export default function UserHomePage() {
+export default function Page() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -204,10 +196,12 @@ export default function UserHomePage() {
               <FolderPlus className="w-4 h-4 mr-2" />
               New Folder
             </Button>
-            <Button className="bg-gradient-to-r from-[#6e73fa] to-[#5e5e5e] text-white">
-              <Upload className="w-4 h-4 mr-2" />
-              Upload Files
-            </Button>
+            <Link href="/user/upload">
+              <Button className="bg-gradient-to-r from-[#6e73fa] to-[#5e5e5e] text-white">
+                <Upload className="w-4 h-4 mr-2" />
+                Upload Files
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
@@ -341,28 +335,19 @@ export default function UserHomePage() {
                   variant={viewMode === 'grid' ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => setViewMode('grid')}
-                  className="rounded-none"
+                  className="rounded-none hover:bg-zinc-800"
                 >
-                  <Grid3X3 className="w-4 h-4" />
+                  <Grid3X3 className="w-4 h-4" color="#fff" />
                 </Button>
                 <Button
                   variant={viewMode === 'list' ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => setViewMode('list')}
-                  className="rounded-none"
+                  className="rounded-none hover:bg-zinc-800"
                 >
-                  <List className="w-4 h-4" />
+                  <List className="w-4 h-4" color="#fff" />
                 </Button>
               </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-zinc-700 text-black hover:bg-zinc-800"
-              >
-                <Filter className="w-4 h-4 mr-2" />
-                Filter
-              </Button>
             </div>
           </div>
         </CardHeader>
