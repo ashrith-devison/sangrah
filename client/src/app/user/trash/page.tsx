@@ -1,10 +1,4 @@
-import { Metadata } from 'next';
 import TrashView from '@/components/user/TrashView';
-
-export const metadata: Metadata = {
-  title: 'Trash - File Manager',
-  description: 'Manage your deleted files and folders. Restore or permanently delete items.',
-};
 
 export default function TrashPage() {
   return (

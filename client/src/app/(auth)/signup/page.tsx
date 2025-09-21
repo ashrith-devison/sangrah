@@ -359,9 +359,6 @@ export default function Page() {
                         {errors.username}
                       </div>
                     )}
-                    <div className="text-xs text-gray-400">
-                      3+ characters, letters, numbers, and underscores only
-                    </div>
                   </div>
 
                   {/* Email Input */}

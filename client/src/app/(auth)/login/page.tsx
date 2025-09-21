@@ -260,7 +260,7 @@ export default function LoginPage() {
               <Link href="/signup">
                 <Button
                   variant="outline"
-                  className="border-zinc-700 text-white hover:bg-zinc-800"
+                  className="border-zinc-700 text-black hover:bg-zinc-400"
                 >
                   Sign Up
                 </Button>
