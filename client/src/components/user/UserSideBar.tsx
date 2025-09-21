@@ -63,8 +63,8 @@ const navigationItems = [
 
 const organizationItems = [
   {
-    title: 'All Files',
-    url: '/user/files',
+    title: 'My Drive',
+    url: '/user/drive',
     icon: Database,
   },
   {

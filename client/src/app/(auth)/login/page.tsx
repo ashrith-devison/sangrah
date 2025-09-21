@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Database,
   Mail,
@@ -24,18 +25,34 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import api from '@/lib/api';
+import { useAuth } from '@/stores/hooks';
+import { useEffect } from 'react';
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     rememberMe: false,
   });
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
-    {}
-  );
+  const [errors, setErrors] = useState<{ 
+    email?: string; 
+    password?: string;
+    api?: string;
+  }>({});
+  const [successMessage, setSuccessMessage] = useState<string>('');
+
+  const router = useRouter();
+  const { login, isLoading, setUser, setToken, setLoading, isAuthenticated, setAuthenticatedUser } = useAuth();
+
+  // Redirect authenticated users to dashboard
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      console.log('✅ User already authenticated, redirecting to dashboard');
+      router.push('/user/home');
+    }
+  }, [isAuthenticated, isLoading, router]); // Added router back to dependencies
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -50,6 +67,18 @@ export default function LoginPage() {
         ...prev,
         [name]: undefined,
       }));
+    }
+
+    // Clear API errors and success message when user makes changes
+    if (errors.api) {
+      setErrors(prev => ({
+        ...prev,
+        api: undefined,
+      }));
+    }
+    
+    if (successMessage) {
+      setSuccessMessage('');
     }
   };
 
@@ -77,17 +106,117 @@ export default function LoginPage() {
 
     if (!validateForm()) return;
 
-    setIsLoading(true);
+    // Clear previous errors and success messages
+    setErrors({});
+    setSuccessMessage('');
+    setLoading(true);
 
-    // Simulate API call
+    // Prepare request payload
+    const requestPayload = {
+      email: formData.email,
+      password: formData.password
+    };
+
+    console.log('🚀 Starting login request...');
+    console.log('📦 Request Payload:', { email: formData.email, password: '[HIDDEN]' });
+    
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      // Handle successful login here
-      console.log('Login successful:', formData);
-    } catch (error) {
-      console.error('Login error:', error);
+      const response = await api.post('/v1/auth/login', requestPayload);
+      
+      console.log('✅ Login successful!');
+      console.log('📨 Response status:', response.status);
+      console.log('📄 Response data:', response.data);
+      
+      // Handle successful login (200)
+      if (response.status === 200) {
+        const { data, message, status } = response.data;
+        
+        if (status === 'success') {
+          // Extract user data and token from response
+          const { username, email, token } = data;
+          
+          // Create user object matching our User type
+          const user = {
+            id: '', // Will be set from backend if needed
+            email: email,
+            name: username, // Using username as name
+            role: 'user' as const,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          // Update Zustand store with single atomic operation
+          console.log('🔄 Updating Zustand store with setAuthenticatedUser...');
+          setAuthenticatedUser(user, token);
+          
+          // Set token in cookies for middleware (without secure for localhost)
+          document.cookie = `auth-token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; samesite=lax`;
+          console.log('🍪 Cookie set for middleware');
+          
+          setSuccessMessage('Login successful! Redirecting to dashboard...');
+          
+          console.log('🔐 User authenticated and stored in Zustand');
+          console.log('👤 User data:', user);
+          console.log('🎟️ Token stored');
+          
+          // Immediate redirect using Next.js router
+          console.log('🚀 Attempting redirect to /user/home');
+          router.push('/user/home');
+        }
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Login error:', error);
+      
+      if (error.response) {
+        const { status, data } = error.response;
+        console.error('📨 Error status:', status);
+        console.error('📄 Error data:', data);
+        
+        switch (status) {
+          case 400:
+            // Invalid login payload
+            setErrors({
+              api: data?.message || 'Invalid request. Please check your credentials and try again.'
+            });
+            break;
+            
+          case 401:
+            // Login failed - invalid credentials
+            setErrors({
+              api: 'Invalid email or password. Please check your credentials and try again.'
+            });
+            break;
+            
+          case 500:
+            // Server error
+            setErrors({
+              api: 'Login failed due to a server error. Please try again later.'
+            });
+            break;
+            
+          default:
+            // Handle other error codes
+            setErrors({
+              api: data?.message || `Login failed with error code ${status}. Please try again.`
+            });
+        }
+      } else if (error.request) {
+        // Network error - no response received
+        console.error('📡 Network error:', error.request);
+        setErrors({
+          api: 'Network error. Please check your internet connection and try again.'
+        });
+      } else {
+        // Request setup error
+        console.error('⚠️ Request setup error:', error.message);
+        setErrors({
+          api: 'An unexpected error occurred. Please try again.'
+        });
+      }
     } finally {
-      setIsLoading(false);
+      console.log('🏁 Request completed');
+      setLoading(false);
     }
   };
 
@@ -126,12 +255,12 @@ export default function LoginPage() {
             </Link>
             <div className="flex items-center space-x-4">
               <span className="text-gray-400 text-sm">
-                Don`&apos;`t have an account?
+                Don&apos;t have an account?
               </span>
               <Link href="/signup">
                 <Button
                   variant="outline"
-                  className="border-zinc-700 text-black hover:bg-zinc-800"
+                  className="border-zinc-700 text-white hover:bg-zinc-800"
                 >
                   Sign Up
                 </Button>
@@ -165,6 +294,26 @@ export default function LoginPage() {
               </CardHeader>
               <form onSubmit={handleSubmit}>
                 <CardContent className="space-y-4">
+                  {/* Success Message */}
+                  {successMessage && (
+                    <div className="bg-green-900/50 border border-green-700 rounded-lg p-3">
+                      <div className="flex items-center text-green-400 text-sm">
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        {successMessage}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* API Error Message */}
+                  {errors.api && (
+                    <div className="bg-red-900/50 border border-red-700 rounded-lg p-3">
+                      <div className="flex items-center text-red-400 text-sm">
+                        <AlertCircle className="w-4 h-4 mr-2" />
+                        {errors.api}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Email Input */}
                   <div className="space-y-2">
                     <Label htmlFor="email" className="text-white">
