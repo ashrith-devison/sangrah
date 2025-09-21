@@ -22,4 +22,6 @@ type LoginRequest struct {
 // LoginResponse represents the response after successful login.
 type LoginResponse struct {
 	Token string `json:"token"`
+	Username string `json:"username"`
+	Email string `json:"email"`
 }

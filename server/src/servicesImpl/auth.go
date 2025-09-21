@@ -71,5 +71,5 @@ func (s *AuthService) LoginUser(req dto.LoginRequest, logger *zap.Logger, reques
 		return dto.LoginResponse{}, errors.New("failed to generate token")
 	}
 	logger.Info("Login successful", zap.String("requestID", requestID), zap.String("username", username), zap.String("email", req.Email))
-	return dto.LoginResponse{Token: token}, nil
+	return dto.LoginResponse{Token: token, Username: username, Email: req.Email}, nil
 }
