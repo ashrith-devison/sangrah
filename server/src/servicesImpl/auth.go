@@ -82,5 +82,5 @@ func (s *AuthService) LoginUser(req dto.LoginRequest, logger *zap.Logger, reques
 		role = "admin"
 	}
 	logger.Info("Login successful", zap.String("requestID", requestID), zap.String("username", username), zap.String("email", req.Email))
-	return dto.LoginResponse{Username: username, Email: req.Email, Token: token, Role: role}, nil
+	    return dto.LoginResponse{Username: username, Email: req.Email, Token: token, Role: role}, nil
 }

@@ -9,13 +9,10 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  Github,
-  Chrome,
   Shield,
   CheckCircle,
   AlertCircle,
   User,
-  Building,
   Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -29,15 +26,15 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import api from '@/lib/api';
+import { useRouter } from 'next/navigation';
 
-export default function SignUpPage() {
+export default function Page() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
+    username: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -45,13 +42,16 @@ export default function SignUpPage() {
     marketingEmails: true,
   });
   const [errors, setErrors] = useState<{
-    firstName?: string;
-    lastName?: string;
+    username?: string;
     email?: string;
     password?: string;
     confirmPassword?: string;
     acceptTerms?: string;
+    api?: string;
   }>({});
+  const [successMessage, setSuccessMessage] = useState<string>('');
+
+  const router = useRouter();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -67,24 +67,35 @@ export default function SignUpPage() {
         [name]: undefined,
       }));
     }
+
+    // Clear API errors and success message when user makes changes
+    if (errors.api) {
+      setErrors(prev => ({
+        ...prev,
+        api: undefined,
+      }));
+    }
+    
+    if (successMessage) {
+      setSuccessMessage('');
+    }
   };
 
   const validateForm = () => {
     const newErrors: {
-      firstName?: string;
-      lastName?: string;
+      username?: string;
       email?: string;
       password?: string;
       confirmPassword?: string;
       acceptTerms?: string;
     } = {};
 
-    if (!formData.firstName) {
-      newErrors.firstName = 'First name is required';
-    }
-
-    if (!formData.lastName) {
-      newErrors.lastName = 'Last name is required';
+    if (!formData.username) {
+      newErrors.username = 'Username is required';
+    } else if (formData.username.length < 3) {
+      newErrors.username = 'Username must be at least 3 characters';
+    } else if (!/^[a-zA-Z0-9_]+$/.test(formData.username)) {
+      newErrors.username = 'Username can only contain letters, numbers, and underscores';
     }
 
     if (!formData.email) {
@@ -121,16 +132,99 @@ export default function SignUpPage() {
 
     if (!validateForm()) return;
 
+    // Clear previous errors and success messages
+    setErrors({});
+    setSuccessMessage('');
     setIsLoading(true);
 
-    // Simulate API call
+    // Prepare request payload
+    const requestPayload = {
+      username: formData.username,
+      email: formData.email,
+      password: formData.password
+    };
+
+    console.log('🚀 Starting signup request...');
+    console.log('📦 Request Payload:', requestPayload);
+    
     try {
-      await new Promise(resolve => setTimeout(resolve, 2500));
-      // Handle successful registration here
-      console.log('Registration successful:', formData);
-    } catch (error) {
-      console.error('Registration error:', error);
+      const response = await api.post('/v1/auth/register', requestPayload);
+      
+      console.log('✅ Registration successful!');
+      console.log('📨 Response status:', response.status);
+      console.log('📄 Response data:', response.data);
+      
+      // Handle successful registration (201)
+      if (response.status === 201) {
+        setSuccessMessage('Registration completed successfully! Redirecting to login...');
+        
+        // Show success message for 2 seconds before redirecting
+        setTimeout(() => {
+          router.push('/login');
+        }, 2000);
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Registration error:', error);
+      
+      if (error.response) {
+        const { status, data } = error.response;
+        console.error('📨 Error status:', status);
+        console.error('📄 Error data:', data);
+        
+        switch (status) {
+          case 400:
+            // Invalid request payload
+            setErrors({
+              api: data?.message || 'Invalid request. Please check your input and try again.'
+            });
+            break;
+            
+          case 409:
+            // Email already registered
+            if (data?.message?.toLowerCase().includes('email')) {
+              setErrors({
+                email: 'This email is already registered. Please use a different email or try logging in.'
+              });
+            } else if (data?.message?.toLowerCase().includes('username')) {
+              setErrors({
+                username: 'This username is already taken. Please choose a different username.'
+              });
+            } else {
+              setErrors({
+                api: 'Account already exists. Please use different credentials.'
+              });
+            }
+            break;
+            
+          case 500:
+            // Registration failed (server error)
+            setErrors({
+              api: 'Registration failed due to a server error. Please try again later.'
+            });
+            break;
+            
+          default:
+            // Handle other error codes
+            setErrors({
+              api: data?.message || `Registration failed with error code ${status}. Please try again.`
+            });
+        }
+      } else if (error.request) {
+        // Network error - no response received
+        console.error('📡 Network error:', error.request);
+        setErrors({
+          api: 'Network error. Please check your internet connection and try again.'
+        });
+      } else {
+        // Request setup error
+        console.error('⚠️ Request setup error:', error.message);
+        setErrors({
+          api: 'An unexpected error occurred. Please try again.'
+        });
+      }
     } finally {
+      console.log('🏁 Request completed');
       setIsLoading(false);
     }
   };
@@ -217,65 +311,54 @@ export default function SignUpPage() {
               </CardHeader>
               <form onSubmit={handleSubmit}>
                 <CardContent className="space-y-4">
-                  {/* Name Fields */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName" className="text-white">
-                        First Name
-                      </Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                        <Input
-                          id="firstName"
-                          name="firstName"
-                          type="text"
-                          placeholder="John"
-                          value={formData.firstName}
-                          onChange={handleInputChange}
-                          className={`pl-10 bg-zinc-800/50 border-zinc-700 text-white placeholder:text-gray-500 focus:border-[#6e73fa] ${
-                            errors.firstName
-                              ? 'border-red-500 focus:border-red-500'
-                              : ''
-                          }`}
-                          disabled={isLoading}
-                        />
+                  {/* Success Message */}
+                  {successMessage && (
+                    <div className="bg-green-900/50 border border-green-700 rounded-lg p-3">
+                      <div className="flex items-center text-green-400 text-sm">
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        {successMessage}
                       </div>
-                      {errors.firstName && (
-                        <div className="flex items-center text-red-400 text-sm mt-1">
-                          <AlertCircle className="w-4 h-4 mr-1" />
-                          {errors.firstName}
-                        </div>
-                      )}
                     </div>
+                  )}
 
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName" className="text-white">
-                        Last Name
-                      </Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                        <Input
-                          id="lastName"
-                          name="lastName"
-                          type="text"
-                          placeholder="Doe"
-                          value={formData.lastName}
-                          onChange={handleInputChange}
-                          className={`pl-10 bg-zinc-800/50 border-zinc-700 text-white placeholder:text-gray-500 focus:border-[#6e73fa] ${
-                            errors.lastName
-                              ? 'border-red-500 focus:border-red-500'
-                              : ''
-                          }`}
-                          disabled={isLoading}
-                        />
+                  {/* API Error Message */}
+                  {errors.api && (
+                    <div className="bg-red-900/50 border border-red-700 rounded-lg p-3">
+                      <div className="flex items-center text-red-400 text-sm">
+                        <AlertCircle className="w-4 h-4 mr-2" />
+                        {errors.api}
                       </div>
-                      {errors.lastName && (
-                        <div className="flex items-center text-red-400 text-sm mt-1">
-                          <AlertCircle className="w-4 h-4 mr-1" />
-                          {errors.lastName}
-                        </div>
-                      )}
                     </div>
+                  )}
+
+                  {/* Username Field */}
+                  <div className="space-y-2">
+                    <Label htmlFor="username" className="text-white">
+                      Username
+                    </Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                      <Input
+                        id="username"
+                        name="username"
+                        type="text"
+                        placeholder="johndoe123"
+                        value={formData.username}
+                        onChange={handleInputChange}
+                        className={`pl-10 bg-zinc-800/50 border-zinc-700 text-white placeholder:text-gray-500 focus:border-[#6e73fa] ${
+                          errors.username
+                            ? 'border-red-500 focus:border-red-500'
+                            : ''
+                        }`}
+                        disabled={isLoading}
+                      />
+                    </div>
+                    {errors.username && (
+                      <div className="flex items-center text-red-400 text-sm mt-1">
+                        <AlertCircle className="w-4 h-4 mr-1" />
+                        {errors.username}
+                      </div>
+                    )}
                   </div>
 
                   {/* Email Input */}
@@ -349,7 +432,7 @@ export default function SignUpPage() {
                       </div>
                     )}
                     <div className="text-xs text-gray-400">
-                      Must contain uppercase, lowercase, and number
+                      Must contain uppercase, lowercase, and number (8+ characters)
                     </div>
                   </div>
 

@@ -5,17 +5,13 @@ import { usePathname } from 'next/navigation';
 import {
   Home,
   Clock,
-  Search,
   UsersRound,
   Upload,
   Trash2,
-  Settings,
   Database,
-  FolderPlus,
   Star,
   HardDrive,
   Tag,
-  BarChart3,
 } from 'lucide-react';
 
 import {
@@ -33,7 +29,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { title } from 'process';
 
 // Navigation items
 const navigationItems = [
@@ -68,19 +63,14 @@ const navigationItems = [
 
 const organizationItems = [
   {
-    title: 'All Files',
-    url: '/user/files',
+    title: 'My Drive',
+    url: '/user/drive',
     icon: Database,
   },
   {
     title: 'Tags',
     url: '/user/tags',
     icon: Tag,
-  },
-  {
-    title: 'Analytics',
-    url: '/user/analytics',
-    icon: BarChart3,
   },
 ];
 
@@ -90,11 +80,6 @@ const otherItems = [
     url: '/user/trash',
     icon: Trash2,
     badge: '3',
-  },
-  {
-    title: 'Settings',
-    url: '/user/settings',
-    icon: Settings,
   },
 ];
 
