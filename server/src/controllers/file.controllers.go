@@ -193,13 +193,31 @@ func DeleteFileHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid request payload", err.Error())
 		return
 	}
-	if req.FileId == "" || req.Username == "" {
-		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "fileId, username required")
+	if req.FileId == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "fileId required")
 		return
 	}
+	// Extract JWT token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		utils.WriteAPIError(w, http.StatusUnauthorized, "Missing Authorization header", "No token provided")
+		return
+	}
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+	claims, err := utils.ValidateJWT(tokenStr)
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusUnauthorized, "Invalid token", err.Error())
+		return
+	}
+	username, ok := claims["user_id"].(string)
+	if !ok || username == "" {
+		utils.WriteAPIError(w, http.StatusUnauthorized, "Invalid token claims", "Username not found in token")
+		return
+	}
+	req.Username = username
 	// Use service layer for deletion
 	userFileCrudService := servicesImpl.NewUserFileCrudService()
-	err := userFileCrudService.DeleteFile(req)
+	err = userFileCrudService.DeleteFile(req)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			utils.WriteAPIError(w, http.StatusNotFound, "File not found or not owned", "File not found or not owned by user")
@@ -229,10 +247,28 @@ func DeleteFileByFilenameHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid request payload", err.Error())
 		return
 	}
-	if req.Filename == "" || req.Username == "" {
-		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "filename, username required")
+	if req.Filename == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "filename required")
 		return
 	}
+	// Extract JWT token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		utils.WriteAPIError(w, http.StatusUnauthorized, "Missing Authorization header", "No token provided")
+		return
+	}
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+	claims, err := utils.ValidateJWT(tokenStr)
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusUnauthorized, "Invalid token", err.Error())
+		return
+	}
+	username, ok := claims["user_id"].(string)
+	if !ok || username == "" {
+		utils.WriteAPIError(w, http.StatusUnauthorized, "Invalid token claims", "Username not found in token")
+		return
+	}
+	req.Username = username
 	db, err := utils.ConnectPostgres()
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
@@ -274,6 +310,11 @@ func RenameFileHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "filename, newName, username required")
 		return
 	}
+	// Reject if newName does not have an extension
+	if !strings.Contains(req.NewName, ".") || strings.HasPrefix(req.NewName, ".") || strings.HasSuffix(req.NewName, ".") {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid new filename", "New filename must include a valid extension")
+		return
+	}
 	db, err := utils.ConnectPostgres()
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
@@ -304,9 +345,9 @@ func RenameFileHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} utils.APIError "Internal server error"
 // @Router /api/v1/file/owned [get]
 func OwnedFilesHandler(w http.ResponseWriter, r *http.Request) {
-	username := r.URL.Query().Get("username")
-	if username == "" {
-		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username required")
+	username, ok := utils.GetUsernameFromContext(r.Context())
+	if !ok || username == "" {
+		utils.WriteAPIError(w, http.StatusUnauthorized, "Unauthorized", "Username not found in token/context")
 		return
 	}
 	db, err := utils.ConnectPostgres()
