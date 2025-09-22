@@ -26,23 +26,19 @@ export default function DriveBreadcrumb({
   
   // Parse the path into segments
   const getPathSegments = (path: string) => {
-    if (!path || path === '/' || path === '/home') return [];
+    if (!path || path === '/') return [];
     
-    // Remove leading slash and split, filter out 'home' if it's the first segment
+    // Remove leading slash and split
     const segments = path.replace(/^\/+/, '').split('/').filter(Boolean);
     
-    // Remove 'home' from the beginning if present
-    const filteredSegments = segments[0] === 'home' ? segments.slice(1) : segments;
-    
     // Build cumulative paths for navigation
-    return filteredSegments.map((segment, index) => {
-      const isFirst = index === 0;
-      const fullPath = isFirst ? `/${segment}` : '/' + filteredSegments.slice(0, index + 1).join('/');
+    return segments.map((segment, index) => {
+      const fullPath = '/' + segments.slice(0, index + 1).join('/');
       
       return {
         name: segment,
         path: fullPath,
-        isLast: index === filteredSegments.length - 1
+        isLast: index === segments.length - 1
       };
     });
   };
@@ -63,7 +59,7 @@ export default function DriveBreadcrumb({
           {/* Home/Root */}
           <BreadcrumbItem>
             <BreadcrumbLink 
-              onClick={() => onNavigate('/home')}
+              onClick={() => onNavigate('/')}
               className="flex items-center gap-1 text-gray-400 hover:text-white cursor-pointer transition-colors"
             >
               <Home className="w-4 h-4" />
@@ -123,7 +119,7 @@ export default function DriveBreadcrumb({
       {/* Path info */}
       <div className="mt-2 text-xs text-gray-500">
         Current path: <code className="bg-zinc-800/50 px-1 py-0.5 rounded text-gray-400">
-          {currentPath || '/home'}
+          {currentPath || '/'}
         </code>
       </div>
     </div>

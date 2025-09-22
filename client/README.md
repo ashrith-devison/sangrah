@@ -1,8 +1,8 @@
-# File Vault - Secure File Management System
+# MyDrive - Complete File Management System
 
 <div align="center">
 
-![File Vault Logo](https://via.placeholder.com/200x80/6e73fa/fffff## 🚀 Features
+![MyDrive Logo](https://via.placeholder.com/200x80/6e73fa/ffffff?text=MyDrive)## 🚀 Features
 
 ### 🔐 **Advanced Authentication System**
 - ✨ Dual-layer security (Server middleware + Client guards)
@@ -11,16 +11,22 @@
 - 👥 Role-based access control (User/Admin)
 - 🚫 Route protection and unauthorized access prevention
 
-### 📁 **File Management**
+### 📁 **Advanced File Management**
 - 📤 Secure file upload with drag-and-drop support
-- 📂 Custom folder creation and organization
-- 🎯 Real-time upload progress tracking
+- 📂 **Google Drive-like Interface** - Nested folder structure with breadcrumb navigation
+- 🎯 Real-time upload progress tracking with folder targeting
 - 🔍 Advanced search and filtering capabilities
 - 🌟 File starring and organization systems
-- 🗑️ Trash and recovery functionality
+- 🗑️ **Complete CRUD Operations** - Create, Read, Update, Delete with API sync
 - 🔗 Secure file sharing with token-based permissions
 - 📊 File deduplication with SHA-256 integrity verification
 - 📝 Multi-format file support with automatic MIME detection
+- **🆕 File Operations Suite**:
+  - 👁️ **File Preview** - In-browser preview for images, PDFs, videos, audio
+  - ✏️ **Real-time Rename** - Instant file renaming with backend sync
+  - 💾 **Secure Download** - Authenticated file downloads
+  - 📁 **Smart Upload** - Upload to specific folders or create new ones
+  - 🔄 **Context Menus** - Right-click actions for all file operations
 
 ### 💾 **State Management**
 - ⚡ Zustand for lightweight, scalable state
@@ -152,7 +158,105 @@ sequenceDiagram
     F-->>U: Render protected content
 ```
 
-## 🎨 Component Design Patterns
+## � Complete Feature Showcase
+
+### 📁 **Google Drive-Like File Management**
+
+#### **Folder Structure & Navigation**
+```
+📂 My Drive
+├── 📁 Documents/
+│   ├── 📁 Projects/
+│   │   ├── 📄 project-proposal.pdf
+│   │   └── 📄 requirements.docx
+│   └── 📄 resume.pdf
+├── 📁 Images/
+│   ├── 🖼️ vacation-photo.jpg
+│   └── 🖼️ profile-picture.png
+└── 📄 important-notes.txt
+```
+
+**Navigation Features:**
+- 🔍 **Breadcrumb Navigation** - `Home > Documents > Projects` visual path
+- 📁 **Unlimited Nesting** - Create folders within folders without limits
+- ⚡ **Quick Actions** - Right-click or dropdown menus for all operations
+- 🎯 **Smart Upload** - Upload directly to specific folders or create new ones
+
+#### **File Operations Suite**
+
+1. **👁️ File Preview System**
+   ```
+   Supported Formats:
+   📸 Images: JPG, PNG, GIF, SVG, WebP, BMP
+   📄 Documents: PDF with embedded viewer
+   🎥 Videos: MP4, AVI, MOV, MKV, WebM
+   🎵 Audio: MP3, WAV, FLAC, AAC, OGG
+   📝 Text: TXT, MD, JSON, JS, TS, CSS, HTML
+   ```
+
+2. **✏️ Real-time File Operations**
+   ```
+   ✅ Rename: Click → Edit → Enter → API Sync
+   ✅ Delete: Select → Confirm → Backend Removal
+   ✅ Download: Click → Authenticated Download
+   ✅ Move: Drag & Drop (Coming Soon)
+   ✅ Share: Generate secure links (Coming Soon)
+   ```
+
+3. **📤 Advanced Upload System**
+   ```
+   Features:
+   ✓ Drag & Drop files/folders
+   ✓ Target specific folders
+   ✓ Create folders during upload
+   ✓ Real-time progress tracking
+   ✓ File validation & error handling
+   ✓ Duplicate detection
+   ```
+
+### 🎨 **User Interface Excellence**
+
+#### **View Modes**
+- **🔲 Grid View** - Visual thumbnails with hover actions
+- **📋 List View** - Detailed information with sortable columns
+- **🔄 Toggle Switch** - Seamless switching between views
+
+#### **Interactive Elements**
+- **Context Menus** - Right-click actions for all operations
+- **Dropdown Actions** - Organized action menus for each file
+- **Modal Dialogs** - Upload, rename, and preview modals
+- **Toast Notifications** - Real-time feedback for all operations
+
+### 🔐 **Authentication & Security**
+
+#### **Multi-layer Security**
+```
+Browser → Middleware → JWT Validation → Protected Routes → API Calls
+```
+
+- **SSR Compatible** - Server-side authentication checks
+- **Persistent Sessions** - Automatic login state restoration
+- **Role-based Access** - User/Admin permission levels
+- **Secure API** - All file operations require authentication
+
+### 📊 **State Management**
+
+#### **Zustand Stores**
+```typescript
+useUserStore()   // Authentication & user data
+useFileStore()   // File operations & state
+useAppStore()    // UI preferences & settings
+```
+
+**Features:**
+- ⚡ **Optimistic Updates** - Instant UI feedback
+- 🔄 **Automatic Sync** - Background API synchronization
+- 💾 **Persistent State** - Settings survive page reloads
+- 🎯 **Type Safety** - Full TypeScript integration
+
+---
+
+## �🎨 Component Design Patterns
 
 ### Authentication Components
 ```

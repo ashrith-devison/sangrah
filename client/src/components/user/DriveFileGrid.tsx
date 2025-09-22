@@ -15,6 +15,7 @@ import {
   Users,
   File,
   MoreVertical,
+  Edit3,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -170,6 +171,13 @@ export default function DriveFileGrid({ files, onFileAction }: DriveFileGridProp
                       >
                         <Share2 className="w-4 h-4 mr-2" />
                         Share
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleAction('rename', file)}
+                        className="text-white hover:bg-zinc-700"
+                      >
+                        <Edit3 className="w-4 h-4 mr-2" />
+                        Rename
                       </DropdownMenuItem>
                       <DropdownMenuSeparator className="bg-zinc-700" />
                       <DropdownMenuItem
