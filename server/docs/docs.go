@@ -40,6 +40,58 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/admin/generate-token": {
+            "post": {
+                "description": "Admin-only: generate JWT token for a user (login as user)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Generate JWT for user",
+                "parameters": [
+                    {
+                        "description": "Payload with username",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.AdminGenerateTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "JWT token for user",
+                        "schema": {
+                            "$ref": "#/definitions/dto.AdminGenerateTokenResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Missing username",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/admin/share": {
             "post": {
                 "security": [
@@ -144,6 +196,36 @@ const docTemplate = `{
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/users": {
+            "get": {
+                "description": "Returns all user details (admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Get all users",
+                "responses": {
+                    "200": {
+                        "description": "List of users",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": true
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
                         }
                     }
                 }
@@ -1059,6 +1141,25 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.AdminGenerateTokenRequest": {
+            "type": "object",
+            "properties": {
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.AdminGenerateTokenResponse": {
+            "type": "object",
+            "properties": {
+                "token": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.AdminShareRequest": {
             "type": "object",
             "properties": {
@@ -1078,6 +1179,15 @@ const docTemplate = `{
         "dto.AdminStatsResponse": {
             "type": "object",
             "properties": {
+                "avgFilesPerUser": {
+                    "type": "number"
+                },
+                "avgStoragePerUser": {
+                    "type": "number"
+                },
+                "deduplicationRatio": {
+                    "type": "number"
+                },
                 "spaceSaved": {
                     "type": "number"
                 },

@@ -100,10 +100,13 @@ func (r *FileCrudRepo) RenameFileByFilename(username, filename, newName string) 
 	if dot != -1 {
 		ext = currentFilename[dot:]
 	}
-	// If no extension, just use newName
-	finalName := newName
-	if ext != "" {
+	// If newName already has an extension, use as is; else append original extension
+	newDot := strings.LastIndex(newName, ".")
+	var finalName string
+	if ext != "" && (newDot == -1 || newDot == 0 || newDot == len(newName)-1) {
 		finalName = newName + ext
+	} else {
+		finalName = newName
 	}
 	// Update filename in user_files
 	res, err := r.Db.Exec("UPDATE user_files SET filename = $1 WHERE username = $2 AND filename = $3 AND permission = 'owner'", finalName, username, filename)

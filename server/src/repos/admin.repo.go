@@ -81,5 +81,18 @@ func (r *AdminRepo) GetUsageStats() (dto.AdminStatsResponse, error) {
 	}
 	// Space saved by deduplication
 	stats.SpaceSaved = stats.TotalLogicalStorage - stats.TotalStorageUsed
+	// Calculate averages and deduplication ratio
+	if stats.TotalUsers > 0 {
+		stats.AvgFilesPerUser = float64(stats.TotalLogicalFiles) / float64(stats.TotalUsers)
+		stats.AvgStoragePerUser = stats.TotalLogicalStorage / float64(stats.TotalUsers)
+	} else {
+		stats.AvgFilesPerUser = 0
+		stats.AvgStoragePerUser = 0
+	}
+	if stats.TotalLogicalStorage > 0 {
+		stats.DeduplicationRatio = stats.TotalStorageUsed / stats.TotalLogicalStorage
+	} else {
+		stats.DeduplicationRatio = 0
+	}
 	return stats, nil
 }

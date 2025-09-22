@@ -129,3 +129,85 @@ func AdminStatsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	utils.WriteAPIResponse(w, http.StatusOK, "Stats fetched", stats)
 }
+
+// GetAllUsersHandler returns all user details for admin
+// @Summary Get all users
+// @Description Returns all user details (admin only)
+// @Tags admin
+// @Produce json
+// @Success 200 {array} map[string]interface{} "List of users"
+// @Failure 500 {object} utils.APIError "Internal server error"
+// @Router /api/v1/admin/users [get]
+func GetAllUsersHandler(w http.ResponseWriter, r *http.Request) {
+	db, err := utils.ConnectPostgres()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
+		return
+	}
+	defer db.Close()
+	rows, err := db.Query("SELECT id, username, email, is_admin, created_at FROM users")
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to fetch users", err.Error())
+		return
+	}
+	defer rows.Close()
+	var users []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var username, email string
+		var isAdmin bool
+		var createdAt string
+		if err := rows.Scan(&id, &username, &email, &isAdmin, &createdAt); err != nil {
+			utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to scan row", err.Error())
+			return
+		}
+		users = append(users, map[string]interface{}{
+			"id":        id,
+			"username":  username,
+			"email":     email,
+			"isAdmin":   isAdmin,
+			"createdAt": createdAt,
+		})
+	}
+	utils.WriteAPIResponse(w, http.StatusOK, "Users fetched", users)
+}
+
+// GenerateUserTokenHandler allows admin to generate a JWT token for any user
+// @Summary Generate JWT for user
+// @Description Admin-only: generate JWT token for a user (login as user)
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param payload body dto.AdminGenerateTokenRequest true "Payload with username"
+// @Success 200 {object} dto.AdminGenerateTokenResponse "JWT token for user"
+// @Failure 400 {object} utils.APIError "Missing username"
+// @Failure 404 {object} utils.APIError "User not found"
+// @Failure 500 {object} utils.APIError "Internal server error"
+// @Router /api/v1/admin/generate-token [post]
+func GenerateUserTokenHandler(w http.ResponseWriter, r *http.Request) {
+	var payload dto.AdminGenerateTokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil || payload.Username == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username required")
+		return
+	}
+	db, err := utils.ConnectPostgres()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
+		return
+	}
+	defer db.Close()
+	var email string
+	var isAdmin bool
+	err = db.QueryRow("SELECT email, is_admin FROM users WHERE username = $1", payload.Username).Scan(&email, &isAdmin)
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusNotFound, "User not found", err.Error())
+		return
+	}
+	token, err := utils.GenerateJWT(payload.Username, email, isAdmin)
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to generate token", err.Error())
+		return
+	}
+	response := dto.AdminGenerateTokenResponse{Token: token, Username: payload.Username}
+	utils.WriteAPIResponse(w, http.StatusOK, "Token generated", response)
+}

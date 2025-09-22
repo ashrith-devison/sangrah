@@ -1,5 +1,10 @@
 package dto
 
+// AdminGenerateTokenRequest is the payload for admin generating a user token
+type AdminGenerateTokenRequest struct {
+	Username string `json:"username"`
+}
+
 // AdminFileUploadRequest for admin file uploads
 type AdminFileUploadRequest struct {
 	Filename string `json:"filename"`
@@ -40,4 +45,13 @@ type AdminStatsResponse struct {
 	TotalStorageUsed    float64 `json:"totalStorageUsed"`
 	TotalLogicalStorage float64 `json:"totalLogicalStorage"`
 	SpaceSaved          float64 `json:"spaceSaved"`
+	AvgFilesPerUser     float64 `json:"avgFilesPerUser"`
+	AvgStoragePerUser   float64 `json:"avgStoragePerUser"`
+	DeduplicationRatio  float64 `json:"deduplicationRatio"`
+}
+
+// AdminGenerateTokenResponse represents the response for admin token generation
+type AdminGenerateTokenResponse struct {
+	Username string `json:"username"`
+	Token    string `json:"token"`
 }

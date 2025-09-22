@@ -18,8 +18,8 @@ var rateLimiterStore = struct {
 
 func RateLimitMiddleware(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID := c.GetString("userID") // Assumes userID is set in context
-		if userID == "" {
+		username := c.GetString("username") // Assumes username is set in context
+		if username == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 			return
 		}
@@ -29,7 +29,7 @@ func RateLimitMiddleware(cfg *config.Config) gin.HandlerFunc {
 		maxRequests := cfg.RateLimit
 
 		rateLimiterStore.mu.Lock()
-		requests := rateLimiterStore.userRequests[userID]
+		requests := rateLimiterStore.userRequests[username]
 		// Remove requests outside the window
 		var filtered []int64
 		for _, ts := range requests {
@@ -43,7 +43,7 @@ func RateLimitMiddleware(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 		filtered = append(filtered, now)
-		rateLimiterStore.userRequests[userID] = filtered
+		rateLimiterStore.userRequests[username] = filtered
 		rateLimiterStore.mu.Unlock()
 
 		c.Next()

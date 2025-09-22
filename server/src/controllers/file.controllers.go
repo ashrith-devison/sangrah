@@ -382,7 +382,7 @@ func OwnedFilesHandler(w http.ResponseWriter, r *http.Request) {
 				if path.Valid {
 					return path.String
 				} else {
-					return "/home"
+					return "/"
 				}
 			}(),
 		})
