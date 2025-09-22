@@ -40,7 +40,6 @@
 
 2. **👁️ Preview Files**
    ```
-   Click File → Context Menu → View → In-Browser Preview
    ```
 
 3. **✏️ Rename Files**
@@ -48,7 +47,6 @@
    Right Click → Rename → Type New Name → Enter → API Sync ✅
    ```
 
-4. **🗑️ Delete Files**
    ```
    Select File → Delete → Confirm → Backend Removal ✅
    ```
@@ -68,15 +66,10 @@
 [![Go](https://img.shields.io/badge/Backend-Go_1.21+-00ADD8?style=for-the-badge&logo=go&logoColor=white)](./server/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](./client/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-316192?style=for-the-badge&logo=postgresql&logoColor=white)](./server/)
-[![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](./docker-compose.yaml)
 
 *A modern, secure, and scalable cloud storage solution with advanced file management capabilities*
 
 [🚀 Quick Start](#-quick-start) • [📖 Documentation](#-project-components) • [🏗️ Architecture](#%EF%B8%8F-system-architecture) • [🤝 Contributing](#-contributing)
-
-</div>
-
----
 
 ## 📊 System Overview
 
@@ -123,7 +116,6 @@ MyDrive is a full-stack file management system that combines a modern **React/Ne
 - **🆕 Google Drive-inspired UI** - Familiar file management interface
 - **🆕 Advanced File Preview** - In-browser preview for multiple file types
 - **🆕 Context Menus** - Right-click and dropdown actions for all file operations
-- **🆕 Breadcrumb Navigation** - Visual path indication for nested folders
 - **🆕 Grid & List Views** - Toggle between different file display modes
 
 ### 📊 **Analytics & Monitoring**
@@ -149,27 +141,15 @@ graph TB
         A --> D
     end
     
-    subgraph "Server Tier (Port 8080)"
         E[Go HTTP Server]
         F[JWT Authentication]
-        G[File Controllers]
-        H[User Management]
-        I[Admin Services]
         
-        E --> F
         E --> G
         E --> H
-        E --> I
-    end
-    
     subgraph "Data Tier (Port 5432)"
-        J[PostgreSQL Database]
         K[File Storage System]
         L[User Data]
-        M[File Metadata]
-        
         J --> L
-        J --> M
         K --> M
     end
     
