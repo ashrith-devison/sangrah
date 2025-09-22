@@ -53,7 +53,6 @@
 - [Running the Application](#running-the-application)
 
 ### 🏗️ Architecture & Design
-- [System Overview](#-system-overview)
 - [Layered Architecture](#layered-architecture)
 - [Dependency Injection Pattern](#dependency-injection-pattern)
 - [Database Schema](#database-schema)
@@ -64,7 +63,6 @@
 - [File Management](#file-management)
 - [Admin Panel](#admin-panel)
 - [Analytics](#analytics)
-- [Public Sharing](#public-sharing)
 
 ### 🔧 Development
 - [Project Structure](#project-structure)
@@ -80,14 +78,10 @@
 ### 🤝 Contributing
 - [Development Setup](#development-setup)
 - [Code Style](#code-style)
-- [Pull Requests](#pull-requests)
 
 ---
 
 ## 🚀 Quick Start
-
-### Prerequisites
-- **Go 1.21+** - [Download here](https://golang.org/dl/)
 - **PostgreSQL 15+** - [Download here](https://postgresql.org/download/)
 - **Docker & Docker Compose** (optional, for containerized deployment)
 
@@ -120,7 +114,6 @@ flowchart TD
    ```
 
 3. **Set up environment variables**
-   ```bash
    cp .env.example .env
    # Edit .env with your configuration
    ```
@@ -138,28 +131,15 @@ flowchart TD
    ```bash
    go run main.go
    ```
-
 6. **Access the API**
    - **API Documentation**: http://localhost:8080/api/docs/
-   - **Health Check**: http://localhost:8080/api/v1/health
 
----
-
-## 🏗️ Architecture & Design
 
 ### System Overview
-
-FileVault is a modern, scalable file management system designed with clean architecture principles. The system provides secure file storage with deduplication, user authentication, and comprehensive API access.
-
-```mermaid
 graph TB
-    subgraph "Client Layer"
         A[📱 Web/Mobile Apps]
         B[🤖 API Clients]
-    end
-
     subgraph "API Gateway"
-        C[🌐 REST API]
         D[📖 Swagger Docs]
     end
 
