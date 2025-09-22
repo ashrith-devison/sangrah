@@ -1,5 +1,4 @@
 
-
 FROM golang:1.25.1-alpine AS builder
 WORKDIR /app
 COPY go.mod ./
@@ -12,5 +11,5 @@ WORKDIR /app
 COPY --from=builder /app/filevault-backend .
 RUN mkdir storage
 COPY .env.production .env
-COPY data/migrations.sql ./migrations.sql
 EXPOSE 8080
+CMD ["./filevault-backend"]
