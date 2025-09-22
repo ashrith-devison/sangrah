@@ -8,7 +8,310 @@
 
 ---
 
-![MyDrive Logo](https:---
+![MyDrive Logo](https://via.placeholder.com/400x120/6e73fa/ffffff?text=MyDrive+File+Vault)
+
+</div>
+
+## 🚀 Quick Start Guide
+
+### 📋 Prerequisites
+
+- **Node.js** (v18 or higher)
+- **Go** (v1.19 or higher)
+- **PostgreSQL** (v13 or higher)
+- **Docker & Docker Compose** (optional, for containerized setup)
+
+### ⚡ Quick Setup (Docker - Recommended)
+
+```bash
+# 1. Clone the repository
+git clone <repository-url>
+cd vit-2026-c- SSR-compatible authentication
+
+### v1.0.0 - Initial Release
+- Basic file management
+- User authentication
+- File upload/download
+- Admin dashboard
+
+---
+
+## 🧪 Testing & Development
+
+### API Testing with Swagger
+
+1. **Start the backend server**
+2. **Open Swagger UI**: http://localhost:8080/swagger/index.html
+3. **Test endpoints interactively**
+
+### Key API Endpoints
+
+#### 🔐 Authentication
+```bash
+# Register a new user
+curl -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"password123","name":"John Doe"}'
+
+# Login
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"password123"}'
+```
+
+#### 📁 File Operations
+```bash
+# Get user files
+curl -X GET "http://localhost:8080/api/v1/file/owned?username=johndoe" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# Upload file metadata
+curl -X POST http://localhost:8080/api/v1/file/upload-meta \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"filename":"document.pdf","size":1024,"mimetype":"application/pdf"}'
+```
+
+#### 👥 Admin Operations
+```bash
+# Get all users (admin only)
+curl -X GET http://localhost:8080/api/v1/admin/users \
+  -H "Authorization: Bearer ADMIN_JWT_TOKEN"
+
+# Generate token for user impersonation
+curl -X POST http://localhost:8080/api/v1/admin/generate-token \
+  -H "Authorization: Bearer ADMIN_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"targetuser"}'
+
+# Get system statistics
+curl -X GET http://localhost:8080/api/v1/admin/stats \
+  -H "Authorization: Bearer ADMIN_JWT_TOKEN"
+```
+
+### 🚨 Troubleshooting
+
+#### Common Issues
+
+1. **Port already in use**
+   ```bash
+   # Kill processes on ports 4000 and 8080
+   sudo lsof -ti:4000,8080 | xargs kill -9
+   ```
+
+2. **Database connection issues**
+   ```bash
+   # Check PostgreSQL status
+   sudo systemctl status postgresql
+   
+   # Restart PostgreSQL
+   sudo systemctl restart postgresql
+   ```
+
+3. **Docker issues**
+   ```bash
+   # Clean Docker cache
+   docker-compose down --volumes
+   docker system prune -a
+   
+   # Rebuild containers
+   docker-compose up --build --force-recreate
+   ```
+
+4. **CORS issues**
+   - Ensure frontend runs on port 4000
+   - Backend automatically allows localhost:4000 origins
+
+### 🔍 Monitoring & Logs
+
+#### View Application Logs
+```bash
+# Backend logs
+docker-compose logs backend
+
+# Frontend logs
+docker-compose logs frontend
+
+# Database logs
+docker-compose logs postgres
+
+# Follow live logs
+docker-compose logs -f
+```
+
+#### Health Checks
+```bash
+# Backend health
+curl http://localhost:8080/health
+
+# Frontend health
+curl http://localhost:4000/api/health
+```
+
+---
+
+## 🎯 Default User Accounts
+
+After running the system, you can use these test accounts:
+
+### Admin Account
+- **Email**: `admin@example.com`
+- **Password**: `admin123`
+- **Features**: User management, system stats, user impersonation
+
+### Regular User Account
+- **Email**: `user@example.com`
+- **Password**: `user123`
+- **Features**: File management, sharing, personal storage
+
+---
+
+## 🏗️ Development Workflow
+
+### Making Changes
+
+1. **Frontend changes**:
+   ```bash
+   cd client
+   npm run dev  # Hot reload enabled
+   ```
+
+2. **Backend changes**:
+   ```bash
+   cd server
+   go run main.go  # Restart required for changes
+   ```
+
+3. **Database changes**:
+   ```bash
+   # Update migrations.sql and restart backend
+   psql -d filevault -f data/migrations.sql
+   ```
+
+### Code Quality
+
+```bash
+# Frontend linting
+cd client && npm run lint
+
+# Frontend formatting
+cd client && npm run format
+
+# Backend formatting
+cd server && go fmt ./...
+
+# Backend testing
+cd server && go test ./...
+```
+
+---
+
+## 📜 Licenseernship-hiring-task-ashrith-devison
+
+# 2. Start all services with Docker Compose
+docker-compose up --build
+
+# 3. Access the application
+# Frontend: http://localhost:4000
+# Backend API: http://localhost:8080
+# API Documentation: http://localhost:8080/swagger/index.html
+```
+
+### 🛠️ Manual Setup
+
+#### Backend Setup (Go + PostgreSQL)
+
+```bash
+# 1. Navigate to server directory
+cd server
+
+# 2. Install Go dependencies
+go mod download
+
+# 3. Set up PostgreSQL database
+createdb filevault
+
+# 4. Set environment variables
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_USER=your_username
+export DB_PASSWORD=your_password
+export DB_NAME=filevault
+export JWT_SECRET=your-super-secret-key
+
+# 5. Run database migrations
+psql -d filevault -f data/migrations.sql
+
+# 6. Start the backend server
+go run main.go
+
+# Backend will be available at http://localhost:8080
+```
+
+#### Frontend Setup (Next.js 15)
+
+```bash
+# 1. Navigate to client directory
+cd client
+
+# 2. Install dependencies
+npm install
+
+# 3. Set up environment variables
+echo "NEXT_PUBLIC_API_URL=http://localhost:8080" > .env.local
+
+# 4. Start the development server
+npm run dev
+
+# Frontend will be available at http://localhost:4000
+```
+
+## 🔧 Configuration
+
+### Backend Environment Variables
+
+Create a `.env` file in the `server` directory:
+
+```env
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=your_username
+DB_PASSWORD=your_password
+DB_NAME=filevault
+
+# JWT Configuration
+JWT_SECRET=your-super-secret-jwt-key
+
+# Server Configuration
+PORT=8080
+
+# Storage Configuration
+UPLOAD_PATH=./storage
+MAX_FILE_SIZE=10485760  # 10MB in bytes
+```
+
+### Frontend Environment Variables
+
+Create a `.env.local` file in the `client` directory:
+
+```env
+# API Configuration
+NEXT_PUBLIC_API_URL=http://localhost:8080
+
+# Optional: For production
+NEXT_PUBLIC_APP_URL=http://localhost:4000
+```
+
+## 📊 System Architecture
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    │   Backend       │    │   Database      │
+│   (Next.js 15)  │◄──►│   (Go + Gin)    │◄──►│   (PostgreSQL)  │
+│   Port: 4000    │    │   Port: 8080    │    │   Port: 5432    │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
 
 ## 🎯 Feature Showcase
 
@@ -464,11 +767,18 @@ mydrive-filevault/
 
 ---
 
-## �📜 License
+## 📜 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## � Documentation
+
+- **[Frontend Documentation](./client/README.md)** - Next.js client setup and development
+- **[Backend Documentation](./server/README.md)** - Go server API and architecture  
+- **[Contributing Guide](./CONTRIBUTING.md)** - How to contribute to the project
+- **[Deployment Guide](./DEPLOYMENT.md)** - Production deployment instructions
+
+## �🙏 Acknowledgments
 
 - **Frontend:** Next.js, React, Tailwind CSS, Zustand, Shadcn/ui
 - **Backend:** Go, PostgreSQL, JWT, Swagger
@@ -482,7 +792,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 [![Frontend Docs](https://img.shields.io/badge/📖_Frontend-Documentation-blue?style=for-the-badge)](./client/)
 [![Backend Docs](https://img.shields.io/badge/📖_Backend-Documentation-green?style=for-the-badge)](./server/)
-[![Docker Setup](https://img.shields.io/badge/🐳_Docker-Quick_Start-orange?style=for-the-badge)](#-quick-start)
+[![Contributing](https://img.shields.io/badge/🤝_Contributing-Guide-purple?style=for-the-badge)](./CONTRIBUTING.md)
+[![Deploy](https://img.shields.io/badge/🚀_Deploy-Guide-red?style=for-the-badge)](./DEPLOYMENT.md)
 
 *MyDrive - Where your files find their perfect home* 🏠
 

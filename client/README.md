@@ -1,11 +1,186 @@
-# MyDrive - Complete File Management System
+# 🌟 MyDrive Frontend - Next.js 15 Application
 
 <div align="center">
 
-![MyDrive Logo](https://via.placeholder.com/200x80/6e73fa/ffffff?text=MyDrive)## 🚀 Features
+![MyDrive Logo](https://via.placeholder.com/400x120/6e73fa/ffffff?text=MyDrive+Frontend)
 
-### 🔐 **Advanced Authentication System**
-- ✨ Dual-layer security (Server middleware + Client guards)
+[![Next.js](https://img.shields.io/badge/Next.js-15.0-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Zustand](https://img.shields.io/badge/Zustand-4.4-FF6B35?style=for-the-badge)](https://zustand-demo.pmnd.rs/)
+
+*Modern React frontend for the MyDrive file management system*
+
+</div>
+
+## 🚀 Quick Start
+
+### 📋 Prerequisites
+
+- **Node.js** 18.17 or higher
+- **npm** 9.0 or higher
+- **Backend API** running on http://localhost:8080
+
+### ⚡ Installation & Setup
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Set up environment variables
+cp .env.example .env.local
+
+# 3. Configure your environment
+echo "NEXT_PUBLIC_API_URL=http://localhost:8080" > .env.local
+
+# 4. Start development server
+npm run dev
+
+# 5. Open your browser
+# http://localhost:4000
+```
+
+### 🔧 Environment Configuration
+
+Create a `.env.local` file in the client directory:
+
+```env
+# Backend API URL
+NEXT_PUBLIC_API_URL=http://localhost:8080
+
+# Application URL (for production)
+NEXT_PUBLIC_APP_URL=http://localhost:4000
+
+# Optional: Debug mode
+NODE_ENV=development
+```
+
+## 🎯 Available Scripts
+
+```bash
+# Development
+npm run dev          # Start dev server with Turbopack on port 4000
+npm run build        # Build for production
+npm run start        # Start production server
+npm run lint         # Run ESLint
+npm run format       # Format code with Prettier
+```
+
+## 🏗️ Project Structure
+
+```
+client/
+├── src/
+│   ├── app/                    # Next.js 15 App Router
+│   │   ├── (auth)/            # Authentication routes
+│   │   │   ├── login/         # Login page
+│   │   │   ├── signup/        # Registration page
+│   │   │   └── layout.tsx     # Auth layout
+│   │   ├── admin/             # Admin panel
+│   │   │   ├── dashboard/     # Admin dashboard
+│   │   │   ├── users/         # User management
+│   │   │   └── layout.tsx     # Admin layout
+│   │   ├── user/              # User dashboard
+│   │   │   ├── home/          # File management
+│   │   │   ├── shared/        # Shared files
+│   │   │   ├── starred/       # Starred files
+│   │   │   ├── trash/         # Deleted files
+│   │   │   └── layout.tsx     # User layout
+│   │   ├── api/               # API routes
+│   │   ├── globals.css        # Global styles
+│   │   └── layout.tsx         # Root layout
+│   ├── components/            # Reusable components
+│   │   ├── ui/               # Shadcn/ui components
+│   │   ├── admin/            # Admin-specific components
+│   │   ├── user/             # User-specific components
+│   │   └── common/           # Shared components
+│   ├── stores/               # Zustand state management
+│   │   ├── userStore.ts      # User authentication
+│   │   ├── fileStore.ts      # File management
+│   │   └── hooks.ts          # Custom hooks
+│   ├── lib/                  # Utility libraries
+│   │   ├── api.ts           # API client
+│   │   └── utils.ts         # Helper functions
+│   └── types/               # TypeScript definitions
+│       └── store.ts         # Store type definitions
+├── public/                  # Static assets
+├── .env.local              # Environment variables
+├── next.config.ts          # Next.js configuration
+├── tailwind.config.ts      # Tailwind CSS config
+└── package.json           # Dependencies and scripts
+```
+
+## 🛠️ Tech Stack & Dependencies
+
+### Core Framework
+- **Next.js 15** - React framework with App Router
+- **React 18** - UI library with concurrent features
+- **TypeScript 5** - Type-safe development
+
+### Styling & UI
+- **Tailwind CSS 3.4** - Utility-first CSS framework
+- **Shadcn/ui** - Accessible component library
+- **Radix UI** - Headless UI primitives
+- **Lucide Icons** - Beautiful icon library
+
+### State Management
+- **Zustand 4.4** - Lightweight state management
+- **Persist middleware** - State persistence
+
+### Authentication & API
+- **JWT** - Token-based authentication
+- **Fetch API** - HTTP client
+- **Custom hooks** - API integration
+
+### Development Tools
+- **ESLint** - Code linting
+- **Prettier** - Code formatting
+- **Turbopack** - Fast bundler for development
+
+---
+
+## 🚀 Features
+
+### 🔐 **Authentication & Authorization**
+- ✨ **Dual-layer Security**: Server middleware + Client guards
+- 🎭 **Role-based Access Control**: Admin and User roles
+- 🔄 **Auto-redirect**: Smart routing based on authentication status
+- 🛡️ **JWT Token Management**: Secure token handling with persistence
+- 🚪 **User Impersonation**: Admin can login as any user securely
+
+### 📁 **File Management System**
+- 📤 **File Upload**: Drag & drop file upload interface
+- 🗂️ **File Organization**: Folder structure with navigation
+- ⭐ **File Actions**: Star, share, delete, and organize files
+- 🔍 **Search & Filter**: Find files quickly across your storage
+- 📊 **Storage Analytics**: Track usage and file statistics
+
+### 🌐 **File Sharing**
+- 🔗 **Public Link Generation**: Create shareable links for any file
+- 📋 **One-click Copy**: Copy share links to clipboard instantly
+- 🔒 **Secure Sharing**: Backend-generated secure public URLs
+- 📱 **Responsive Share Modal**: Mobile-optimized sharing interface
+
+### 👑 **Admin Dashboard**
+- 📈 **Real-time Analytics**: Live system statistics and metrics
+- 👥 **User Management**: View, manage, and impersonate users
+- 💾 **Storage Monitoring**: Track storage usage and efficiency
+- 🔄 **Auto-refresh**: Live data updates every 30 seconds
+- 📊 **Interactive Charts**: Visual data representation
+
+### � **User Experience**
+- 🎨 **Modern UI/UX**: Clean, intuitive interface design
+- � **Fully Responsive**: Works perfectly on all devices
+- ⚡ **Fast Performance**: Optimized with Next.js 15 and Turbopack
+- 🌙 **Consistent Theming**: Professional dark theme
+- 🔄 **Loading States**: Smooth loading indicators and skeletons
+
+### 🛠️ **Developer Experience**
+- 🔧 **TypeScript**: Full type safety across the application
+- 📦 **Component Library**: Reusable Shadcn/ui components
+- 🎯 **State Management**: Zustand for predictable state updates
+- 🔥 **Hot Reload**: Instant development feedback
+- 📚 **Comprehensive Docs**: Well-documented codebase
 - 🔄 JWT token management with automatic refresh
 - 🍪 HTTP-only cookies + localStorage persistence
 - 👥 Role-based access control (User/Admin)
@@ -18,13 +193,15 @@
 - 🔍 Advanced search and filtering capabilities
 - 🌟 File starring and organization systems
 - 🗑️ **Complete CRUD Operations** - Create, Read, Update, Delete with API sync
-- 🔗 Secure file sharing with token-based permissions
+- 🔗 **Advanced File Sharing** - Generate secure public links with token-based access
+- 📊 **Dynamic Storage Management** - Real-time quota tracking with 10MB limits
 - 📊 File deduplication with SHA-256 integrity verification
 - 📝 Multi-format file support with automatic MIME detection
 - **🆕 File Operations Suite**:
   - 👁️ **File Preview** - In-browser preview for images, PDFs, videos, audio
   - ✏️ **Real-time Rename** - Instant file renaming with backend sync
   - 💾 **Secure Download** - Authenticated file downloads
+  - 🔗 **Public Link Sharing** - Generate shareable links with one-click copy
   - 📁 **Smart Upload** - Upload to specific folders or create new ones
   - 🔄 **Context Menus** - Right-click actions for all file operations
 
@@ -53,7 +230,19 @@
 
 ## 🆕 Recent Updates
 
-### v2.1.0 - Enhanced Upload System
+### v2.2.0 - Advanced File Sharing System
+- ✅ **🔗 Public Link Sharing** - Generate secure public links for any file
+- ✅ **📋 One-Click Copy** - Instant clipboard copying with visual feedback
+- ✅ **🔒 Token-Based Security** - Backend-generated tokens for secure access
+- ✅ **📱 Mobile-Optimized Modal** - Responsive share interface with enhanced UX
+- ✅ **🔄 Dynamic Link Generation** - Real-time API integration with backend
+- ✅ **📊 Advanced Debug Info** - Collapsible token details for developers
+- ✅ **⚡ Instant Feedback** - Copy confirmation with auto-hide timers
+
+### v2.1.0 - Enhanced Upload System & Storage Management
+- ✅ **📊 Dynamic Storage Quota** - Real-time storage usage from `/v1/file/storage-quota` API
+- ✅ **📏 Accurate Storage Display** - 10MB limit with precise calculations
+- ✅ **🔄 Auto-Refresh Context** - Storage updates after file operations
 - ✅ **Custom Folder Input** - Users can create any folder structure for uploads
 - ✅ **Real-time API Integration** - Direct backend file upload with progress tracking
 - ✅ **Advanced Error Handling** - Comprehensive error messages and retry functionality
@@ -199,11 +388,26 @@ sequenceDiagram
    ✅ Rename: Click → Edit → Enter → API Sync
    ✅ Delete: Select → Confirm → Backend Removal
    ✅ Download: Click → Authenticated Download
+   ✅ Share: Generate → Copy Link → Share Anywhere
    ✅ Move: Drag & Drop (Coming Soon)
-   ✅ Share: Generate secure links (Coming Soon)
    ```
 
-3. **📤 Advanced Upload System**
+3. **🔗 Advanced Sharing System**
+   ```
+   Share Features:
+   ✓ Generate secure public links
+   ✓ Token-based access control
+   ✓ One-click link copying
+   ✓ Mobile-optimized share modal
+   ✓ Real-time link generation
+   ✓ Advanced debug information
+   
+   API Endpoints:
+   POST /v1/file/public-share
+   GET  /v1/file/public/view?token=...
+   ```
+
+4. **📤 Advanced Upload System**
    ```
    Features:
    ✓ Drag & Drop files/folders
@@ -337,6 +541,90 @@ FormData: {
 └─────────────────────────────────┘
 ```
 
+## 🔗 Advanced File Sharing System
+
+### 📋 **Share Modal Interface**
+```
+┌─────────────────────────────────────────┐
+│  🔗 Share File                          │
+├─────────────────────────────────────────┤
+│                                         │
+│  📁 File to share                       │
+│  ┌─────────────────────────────────────┐ │
+│  │ 📄 document.pdf                    │ │
+│  └─────────────────────────────────────┘ │
+│                                         │
+│  🔗 Public Link                         │
+│  ┌─────────────────────────────────────┐ │
+│  │ Generate Link                      ✨│ │
+│  └─────────────────────────────────────┘ │
+│                                         │
+│  📋 Generated Link                       │
+│  ┌─────────────────────────────────────┐ │
+│  │ https://api.../public/view?token=.. │📋│
+│  └─────────────────────────────────────┘ │
+│                                         │
+│  ✅ Link copied to clipboard!           │
+│                                         │
+│  ℹ️  Advanced Details                   │
+│  ┌─────────────────────────────────────┐ │
+│  │ Token: abc123...                   │ │
+│  └─────────────────────────────────────┘ │
+│                                         │
+│  💡 Anyone with this link can view and   │
+│     download the file. Link remains     │
+│     active until revoked.               │
+│                                         │
+│  ┌───────────┐ ┌───────────────────────┐ │
+│  │   Close   │ │    Copy Link         │ │
+│  └───────────┘ └───────────────────────┘ │
+└─────────────────────────────────────────┘
+```
+
+### 🔧 **Share System Features**
+
+#### **🚀 Core Functionality**
+- **📤 One-Click Sharing** - Generate public links instantly
+- **🔒 Token Security** - Backend-generated secure access tokens
+- **📋 Auto-Copy** - Clipboard integration with visual feedback
+- **📱 Mobile Optimized** - Responsive design for all devices
+- **⚡ Real-time Generation** - Instant API response handling
+
+#### **🎯 User Experience**
+- **✨ Smooth Animations** - Loading states and transitions
+- **💬 Clear Feedback** - Success messages and error handling
+- **🔍 Debug Mode** - Collapsible advanced details for developers
+- **⌨️ Keyboard Support** - ESC to close, Enter actions
+- **🎨 Dark/Light Theme** - Consistent with app design
+
+#### **🔧 Technical Implementation**
+```typescript
+// API Integration
+POST /v1/file/public-share
+{
+  "filename": "document.pdf",
+  "username": "user123"
+}
+
+// Response
+{
+  "publicUrl": "https://api.../public/view?token=...",
+  "token": "secure-access-token"
+}
+
+// Frontend State
+const [publicLink, setPublicLink] = useState<string>('');
+const [shareToken, setShareToken] = useState<string>('');
+const [linkCopied, setLinkCopied] = useState(false);
+```
+
+#### **🔐 Security Features**
+- **🎫 Token-Based Access** - Unique tokens per shared file
+- **🔒 Backend Validation** - Server-side permission checks
+- **⏰ Active Until Revoked** - Links remain valid indefinitely
+- **🛡️ Secure API Endpoints** - Protected share generation
+- **📊 Access Tracking** - Monitor share usage (future feature)
+
 ### 🔐 Authentication & Security
 - **JWT-based authentication** with persistent sessions
 - **Role-based access control** (User/Admin)
@@ -350,10 +638,12 @@ FormData: {
 - **Drag-and-drop interface** - Intuitive file upload with multi-file support
 - **Intelligent file deduplication** - SHA-256 based duplicate detection
 - **Advanced search and filtering** - Multi-parameter file discovery
-- **Secure file sharing** - Token-based permission controls
+- **🔗 Advanced file sharing** - Token-based public link generation with one-click copy
+- **📊 Dynamic storage management** - Real-time quota tracking with precise usage display
 - **File organization** - Starring, tagging, and folder management
 - **API integration** - Direct backend upload with error handling
 - **File validation** - Size limits and format verification
+- **Complete CRUD operations** - Create, Read, Update, Delete, Share with full API sync
 
 ### 🎨 User Interface
 - **Modern dark theme** with gradient designs
@@ -383,7 +673,92 @@ FormData: {
 - **JWT tokens** - Secure authentication
 - **RESTful API** - Standard HTTP endpoints
 
-## 🚦 Getting Started
+## � API Integration
+
+### 📊 **Storage Management Endpoints**
+```typescript
+// Get user storage quota and usage
+GET /v1/file/storage-quota?username={username}
+Response: {
+  status: "success",
+  data: {
+    totalStorage: 10485760,      // 10MB in bytes
+    usedStorage: 2621440,        // Used storage in bytes
+    availableStorage: 7864320,   // Available storage in bytes
+    usagePercentage: 25.0        // Usage percentage
+  }
+}
+```
+
+### 🔗 **File Sharing Endpoints**
+```typescript
+// Generate public share link
+POST /v1/file/public-share
+Body: {
+  "filename": "document.pdf",
+  "username": "user123"
+}
+Response: {
+  "publicUrl": "https://api.../public/view?token=abc123",
+  "token": "abc123"
+}
+
+// Access shared file
+GET /v1/file/public/view?token={token}
+Response: File stream or file data
+```
+
+### 📁 **File Management Endpoints**
+```typescript
+// Upload file
+POST /v1/file/upload
+Body: FormData with file and metadata
+
+// Rename file
+POST /v1/file/rename
+Body: {
+  "filename": "old-name.pdf",
+  "newName": "new-name.pdf", 
+  "username": "user123"
+}
+
+// Delete file
+POST /v1/file/delete-filename
+Body: {
+  "filename": "file.pdf",
+  "username": "user123"
+}
+
+// Download file
+GET /v1/file/path/download?path={fileId.extension}
+
+// Preview file
+GET /v1/file/path/preview?path={fileId.extension}
+
+// Get user files
+GET /v1/file/owned?username={username}
+Response: Array of file objects
+```
+
+### 🔐 **Authentication Endpoints**
+```typescript
+// User login
+POST /v1/auth/login
+Body: {
+  "username": "user123",
+  "password": "password"
+}
+
+// User registration  
+POST /v1/auth/signup
+Body: {
+  "username": "user123",
+  "password": "password",
+  "email": "user@example.com"
+}
+```
+
+## �🚦 Getting Started
 
 ### Prerequisites
 - Node.js 18+ 
@@ -548,13 +923,6 @@ npm run build
 npm run start
 ```
 
-## 🔧 Configuration
-
-### Environment Variables
-- `NEXT_PUBLIC_API_URL` - Backend API base URL
-- `NEXT_PUBLIC_APP_NAME` - Application name
-- `NEXT_PUBLIC_APP_VERSION` - Application version
-
 ### Customization
 - **Themes**: Modify `tailwind.config.js` for custom colors
 - **Components**: Extend Shadcn/ui components in `/components/ui`
@@ -575,15 +943,83 @@ npm run start
 </div>
 
 ---
+### 🧪 **Testing**
+
+```bash
+# Type checking
+npm run type-check
+
+# Linting
+npm run lint
+npm run lint:fix
+
+# Build verification
+npm run build
+```
+
+---
+
+## 🚀 Deployment
+
+### 📦 **Production Build**
+
+```bash
+# Build optimized version
+npm run build
+
+# Test production build locally
+npm run start
+```
+
+### 🌐 **Environment Variables for Production**
+
+```bash
+NEXT_PUBLIC_API_URL=https://your-api-domain.com
+NEXT_PUBLIC_FRONTEND_URL=https://your-frontend-domain.com
+```
+
+### ☁️ **Deployment Platforms**
+
+- **Vercel** (Recommended): Auto-deploy from Git
+- **Netlify**: Static site hosting
+- **Docker**: Use provided Dockerfile
+- **AWS/GCP/Azure**: Standard Node.js deployment
+
+---
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**🔧 Build Errors**
+```bash
+# Clear Next.js cache
+rm -rf .next
+
+# Reinstall dependencies
+rm -rf node_modules package-lock.json
+npm install
+```
+
+**🔌 API Connection Issues**
+- Verify backend server is running on correct port
+- Check `NEXT_PUBLIC_API_URL` in `.env.local`
+- Ensure CORS is properly configured on backend
+
+**🎨 Style Issues**
+```bash
+# Rebuild Tailwind classes
+npm run dev
+```
+
+**🔒 Authentication Problems**
+- Clear browser storage/cookies
+- Verify JWT token format
+- Check backend authentication endpoints
+
+---
 
 ## 🤝 Contributing
-
-<div align="center">
-
-[![Contributors Welcome](https://img.shields.io/badge/contributors-welcome-brightgreen.svg?style=flat-square)](CONTRIBUTING.md)
-[![Good First Issues](https://img.shields.io/badge/good%20first%20issues-available-blue.svg?style=flat-square)](https://github.com/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22)
-
-</div>
 
 1. 🍴 Fork the repository
 2. 🌿 Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -598,47 +1034,18 @@ npm run start
 - Add tests for new features
 - Update documentation as needed
 
+---
+
 ## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-<div align="center">
-
-Special thanks to the amazing open-source community:
-
-[![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Zustand](https://img.shields.io/badge/Zustand-FF6B6B?style=for-the-badge&logo=react&logoColor=white)](https://zustand-demo.pmnd.rs/)
-
-</div>
-
-## 🆘 Support
-
-<div align="center">
-
-For support and questions:
-
-[![GitHub Issues](https://img.shields.io/badge/GitHub-Issues-red?style=for-the-badge&logo=github)](https://github.com/issues)
-[![Documentation](https://img.shields.io/badge/Read-Documentation-blue?style=for-the-badge&logo=gitbook)](docs/)
-[![Stack Overflow](https://img.shields.io/badge/Stack-Overflow-orange?style=for-the-badge&logo=stackoverflow)](https://stackoverflow.com/questions/tagged/mydrive)
-
-</div>
+This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details.
 
 ---
 
 <div align="center">
 
-## 🌟 Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=mydrive/mydrive&type=Date)](https://star-history.com/#mydrive/mydrive&Date)
-
 **Made with ❤️ by the MyDrive Team**
 
 *Building the future of cloud storage, one file at a time.*
-
-[![Back to Top](https://img.shields.io/badge/Back%20to%20Top-⬆️-blue?style=for-the-badge)](#mydrive---modern-file-vault-system)
 
 </div>

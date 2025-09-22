@@ -26,17 +26,24 @@ async function verifyToken(token: string): Promise<{ valid: boolean; role?: stri
     try {
       const payload = JSON.parse(atob(parts[1]));
       
+      console.log('🔍 JWT Payload decoded:', payload);
+      
       // Check if token is expired
       if (payload.exp && payload.exp < Date.now() / 1000) {
+        console.log('⏰ Token expired');
         return { valid: false };
       }
 
+      const role = payload.role || payload.user_role || 'user';
+      console.log('👤 Role from JWT:', role);
+
       return {
         valid: true,
-        role: payload.role || 'user',
-        userId: payload.userId || payload.id
+        role: role,
+        userId: payload.userId || payload.id || payload.user_id
       };
-    } catch {
+    } catch (error) {
+      console.error('❌ JWT payload decode error:', error);
       return { valid: false };
     }
   } catch (error) {
@@ -68,6 +75,7 @@ export async function middleware(request: NextRequest) {
   
   console.log(`🔐 Token valid: ${isValidToken}`);
   console.log(`👤 User role: ${role || 'None'}`);
+  console.log(`🎟️ Raw token (first 20 chars): ${token ? token.substring(0, 20) + '...' : 'None'}`);
 
   // Handle auth routes (login, signup, etc.)
   if (authRoutes.some(route => pathname.startsWith(route))) {
@@ -77,7 +85,7 @@ export async function middleware(request: NextRequest) {
     if (isValidToken) {
       console.log(`✅ User already authenticated, redirecting from ${pathname}`);
       const redirectUrl = role === 'admin' ? '/admin/dashboard' : '/user/home';
-      console.log(`🔄 Redirecting to: ${redirectUrl}`);
+      console.log(`🔄 Role-based redirect: ${role} -> ${redirectUrl}`);
       return NextResponse.redirect(new URL(redirectUrl, request.url));
     }
     
@@ -123,7 +131,9 @@ export async function middleware(request: NextRequest) {
   if (pathname === '/') {
     // Redirect authenticated users to their appropriate dashboard
     if (isValidToken) {
+      console.log(`🏠 Root redirect - User role: ${role}`);
       const redirectUrl = role === 'admin' ? '/admin/dashboard' : '/user/home';
+      console.log(`🔄 Root redirect: ${role} -> ${redirectUrl}`);
       return NextResponse.redirect(new URL(redirectUrl, request.url));
     }
     // Allow access to landing page for unauthenticated users

@@ -133,25 +133,44 @@ export default function LoginPage() {
         
         if (status === 'success') {
           // Extract user data and token from response
-          const { username, email, token } = data;
+          const { username, email, token, role } = data;
+          
+          console.log('🔍 DEBUGGING LOGIN RESPONSE:');
+          console.log('📦 Full response data:', data);
+          console.log('👤 Extracted username:', username);
+          console.log('📧 Extracted email:', email);
+          console.log('🎟️ Extracted token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+          console.log('👑 Extracted role:', role);
+          console.log('📋 All keys in data:', Object.keys(data));
           
           // Create user object matching our User type
           const user = {
             id: '', // Will be set from backend if needed
             email: email,
             name: username, // Using username as name
-            role: 'user' as const,
+            role: role || 'user', // Use role from backend response
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
 
           // Update Zustand store with single atomic operation
           console.log('🔄 Updating Zustand store with setAuthenticatedUser...');
+          console.log('👤 User role from backend:', role);
+          console.log('👤 User object being stored:', user);
           setAuthenticatedUser(user, token);
           
           // Set token in cookies for middleware (without secure for localhost)
           document.cookie = `auth-token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; samesite=lax`;
           console.log('🍪 Cookie set for middleware');
+          
+          // Let's also decode the JWT to see what's inside
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            console.log('🔍 JWT PAYLOAD DECODED:', payload);
+            console.log('👑 Role in JWT payload:', payload.role);
+          } catch (e) {
+            console.error('❌ Failed to decode JWT:', e);
+          }
           
           setSuccessMessage('Login successful! Redirecting to dashboard...');
           
@@ -159,9 +178,15 @@ export default function LoginPage() {
           console.log('👤 User data:', user);
           console.log('🎟️ Token stored');
           
-          // Immediate redirect using Next.js router
-          console.log('🚀 Attempting redirect to /user/home');
-          router.push('/user/home');
+          // Redirect based on role
+          const redirectPath = role === 'admin' ? '/admin/dashboard' : '/user/home';
+          console.log(`🚀 Role check: ${role} === 'admin' ? ${role === 'admin'}`);
+          console.log(`🚀 Attempting redirect to ${redirectPath}`);
+          
+          // Add a small delay to ensure state is updated
+          setTimeout(() => {
+            router.push(redirectPath);
+          }, 100);
         }
       }
       

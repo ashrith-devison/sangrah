@@ -18,7 +18,7 @@ export const useUserStore = create<UserStore>()(
         set({ isLoading: true });
         
         try {
-          const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+          const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -32,18 +32,31 @@ export const useUserStore = create<UserStore>()(
 
           const data = await response.json();
           
+          // Handle the response structure: data.data contains user info
+          const userData = data.data || data;
+          const userRole = userData.role || 'user';
+          
+          const user = {
+            id: userData.id || '',
+            email: userData.email,
+            name: userData.username || userData.name,
+            role: userRole,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          
           set({
-            user: data.user,
-            token: data.token,
+            user: user,
+            token: userData.token,
             isAuthenticated: true,
             isLoading: false,
           });
 
           // Store token in localStorage for API calls
           if (typeof window !== 'undefined') {
-            localStorage.setItem('auth_token', data.token);
+            localStorage.setItem('auth_token', userData.token);
             // Also set token in cookies for middleware
-            document.cookie = `auth-token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; secure; samesite=strict`;
+            document.cookie = `auth-token=${userData.token}; path=/; max-age=${7 * 24 * 60 * 60}; secure; samesite=strict`;
           }
         } catch (error) {
           set({ isLoading: false });
@@ -159,6 +172,9 @@ export const useUserStore = create<UserStore>()(
 
       // Complete authentication update in single call
       setAuthenticatedUser: (user: User, token: string) => {
+        console.log('🔄 setAuthenticatedUser called with:', { user, token: !!token });
+        console.log('👤 User role being stored:', user.role);
+        
         set({ 
           user, 
           token, 
@@ -168,8 +184,13 @@ export const useUserStore = create<UserStore>()(
         
         if (typeof window !== 'undefined') {
           localStorage.setItem('auth_token', token);
+          // Store user data for debugging
+          localStorage.setItem('user_data', JSON.stringify(user));
           // Also set cookie for middleware
           document.cookie = `auth-token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; samesite=lax`;
+          
+          console.log('💾 Data stored in localStorage');
+          console.log('🍪 Cookie set for middleware');
         }
       },
     }),
