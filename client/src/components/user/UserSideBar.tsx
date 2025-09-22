@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -12,6 +13,7 @@ import {
   Star,
   HardDrive,
   Tag,
+  RefreshCw,
 } from 'lucide-react';
 
 import {
@@ -29,6 +31,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { useStorageQuota } from '@/hooks/useStorageQuota';
+import { StorageProvider, useStorageContext } from '@/contexts/StorageContext';
 
 // Navigation items
 const navigationItems = [
@@ -67,11 +71,6 @@ const organizationItems = [
     url: '/user/drive',
     icon: Database,
   },
-  {
-    title: 'Tags',
-    url: '/user/tags',
-    icon: Tag,
-  },
 ];
 
 const otherItems = [
@@ -83,8 +82,19 @@ const otherItems = [
   },
 ];
 
-export const UserSideBar = () => {
+const UserSideBarContent = () => {
   const pathname = usePathname();
+  const { loading, error, getStorageStats, refetch } = useStorageQuota();
+  const storageContext = useStorageContext();
+  
+  const storageStats = getStorageStats();
+
+  // Listen for storage refresh requests from context
+  React.useEffect(() => {
+    if (storageContext) {
+      // Could add more sophisticated event handling here if needed
+    }
+  }, [storageContext]);
 
   return (
     <Sidebar className="border-r border-zinc-800 bg-black">
@@ -215,14 +225,51 @@ export const UserSideBar = () => {
         {/* Storage Usage */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-gray-400 text-sm">Storage</span>
-            <span className="text-white text-sm font-medium">7.2GB / 10GB</span>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-400 text-sm">Storage</span>
+              {!loading && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={refetch}
+                  className="h-4 w-4 p-0 text-gray-400 hover:text-white"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                </Button>
+              )}
+            </div>
+            <span className="text-white text-sm font-medium">
+              {loading ? (
+                <span className="text-gray-400">Loading...</span>
+              ) : error ? (
+                <span className="text-red-400">Error</span>
+              ) : storageStats ? (
+                `${storageStats.used} / ${storageStats.total}`
+              ) : (
+                '0MB / 10MB'
+              )}
+            </span>
           </div>
-          <Progress value={48} className="h-2" />
+          
+          <Progress 
+            value={loading ? 0 : error ? 0 : storageStats?.percentage || 0} 
+            className="h-2" 
+          />
+          
           <div className="flex justify-between text-xs">
-            <span className="text-green-400">3.2GB saved</span>
-            <span className="text-gray-400">48% used</span>
+            <span className="text-green-400">
+              {loading ? 'Loading...' : error ? 'N/A' : storageStats ? storageStats.remaining + ' free' : '10MB free'}
+            </span>
+            <span className="text-gray-400">
+              {loading ? '...' : error ? 'Error' : storageStats ? `${storageStats.percentage}% used` : '0% used'}
+            </span>
           </div>
+          
+          {error && (
+            <div className="text-xs text-red-400 text-center">
+              Failed to load storage data
+            </div>
+          )}
         </div>
 
         {/* Upgrade Button */}
@@ -235,5 +282,14 @@ export const UserSideBar = () => {
         </Button>
       </SidebarFooter>
     </Sidebar>
+  );
+};
+
+// Main export component with storage provider
+export const UserSideBar = () => {
+  return (
+    <StorageProvider>
+      <UserSideBarContent />
+    </StorageProvider>
   );
 };

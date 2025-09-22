@@ -64,43 +64,6 @@ export default function DriveStats({ stats }: DriveStatsProps) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-      {/* Storage Usage */}
-      <Card className="bg-zinc-900/50 border-zinc-800">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-white text-sm font-medium flex items-center gap-2">
-            <HardDrive className="w-4 h-4 text-blue-400" />
-            Storage
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Used</span>
-              <span className="text-white">{formatBytes(stats.storageUsed)}</span>
-            </div>
-            <Progress 
-              value={storagePercentage} 
-              className="h-2 bg-zinc-800" 
-            />
-            <div className="flex justify-between text-xs">
-              <span className="text-gray-500">{storagePercentage.toFixed(1)}% used</span>
-              <span className="text-gray-500">{formatBytes(stats.storageTotal)} total</span>
-            </div>
-          </div>
-          <Badge 
-            variant="outline" 
-            className={`text-xs ${
-              storagePercentage >= 90 
-                ? 'border-red-600 text-red-400' 
-                : storagePercentage >= 70 
-                  ? 'border-yellow-600 text-yellow-400'
-                  : 'border-blue-600 text-blue-400'
-            }`}
-          >
-            {storagePercentage >= 90 ? 'Nearly Full' : storagePercentage >= 70 ? 'Running Low' : 'Available'}
-          </Badge>
-        </CardContent>
-      </Card>
 
       {/* File Counts */}
       <Card className="bg-zinc-900/50 border-zinc-800">

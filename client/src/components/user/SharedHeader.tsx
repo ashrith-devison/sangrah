@@ -14,22 +14,6 @@ export default function SharedHeader() {
             Manage files and folders shared with you and by you
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 w-full lg:w-auto">
-          <Button
-            variant="outline"
-            className="w-full sm:w-auto bg-gradient-to-r from-[#6e73fa] to-[#5e5e5e] text-white hover:from-[#5e5e5e] hover:to-[#6e73fa] text-sm"
-          >
-            <UserPlus className="w-4 h-4 mr-2" />
-            Share New
-          </Button>
-          <Button
-            variant="outline"
-            className="w-full sm:w-auto border-zinc-700 text-black hover:bg-zinc-800/50 hover:text-white text-sm"
-          >
-            <Link className="w-4 h-4 mr-2" />
-            Create Link
-          </Button>
-        </div>
       </div>
     </div>
   );

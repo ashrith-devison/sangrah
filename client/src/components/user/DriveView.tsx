@@ -9,7 +9,7 @@ import DriveBreadcrumb from './DriveBreadcrumb';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileX, AlertCircle, Grid3X3, List, Search, HardDrive, FolderPlus, Upload, X, Edit3, Music, Download, FileIcon, Eye } from 'lucide-react';
+import { FileX, AlertCircle, Grid3X3, List, Search, HardDrive, FolderPlus, Upload, X, Edit3, Music, Download, FileIcon, Eye, Link, Copy, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
 import api from '@/lib/api';
@@ -45,6 +45,12 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [fileToPreview, setFileToPreview] = useState<DriveFileItem | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [fileToShare, setFileToShare] = useState<DriveFileItem | null>(null);
+  const [publicLink, setPublicLink] = useState<string>('');
+  const [shareToken, setShareToken] = useState<string>('');
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   // Mock stats - in real app, this would come from API
   const mockStats = {
@@ -328,6 +334,80 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
     }
   };
 
+  const handleShare = async (file: DriveFileItem) => {
+    if (!user?.name) {
+      console.error('Username not found - user not authenticated');
+      return;
+    }
+
+    setFileToShare(file);
+    setShareModalOpen(true);
+    setPublicLink('');
+    setShareToken('');
+    setLinkCopied(false);
+  };
+
+  const generatePublicLink = async () => {
+    if (!fileToShare || !user?.name) return;
+
+    setIsGeneratingLink(true);
+    try {
+      const response = await api.post('/v1/file/public-share', {
+        filename: fileToShare.filename,
+        username: user.name
+      });
+
+      console.log('API Response:', response.data);
+
+      // Handle different response structures
+      if (response.data.status === 'success' && response.data.data) {
+        // If response has nested data structure
+        setPublicLink(response.data.data.publicUrl);
+        setShareToken(response.data.data.token || '');
+        console.log('Public link generated:', response.data.data);
+      } else if (response.data.publicUrl) {
+        // If response has direct publicUrl field
+        setPublicLink(response.data.publicUrl);
+        setShareToken(response.data.token || '');
+        console.log('Public link generated:', response.data);
+      } else if (response.status === 200 && response.data.publicUrl) {
+        // Handle 200 response with direct fields
+        setPublicLink(response.data.publicUrl);
+        setShareToken(response.data.token || '');
+        console.log('Public link generated:', response.data);
+      } else {
+        throw new Error(response.data.message || 'Failed to generate public link');
+      }
+    } catch (error) {
+      console.error('Failed to generate public link:', error);
+      // Show user-friendly error message
+      alert('Failed to generate public link. Please try again.');
+    } finally {
+      setIsGeneratingLink(false);
+    }
+  };
+
+  const copyToClipboard = async () => {
+    if (!publicLink) return;
+
+    try {
+      await navigator.clipboard.writeText(publicLink);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = publicLink;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    }
+  };
+
   const handleDownload = async (file: DriveFileItem) => {
     try {
       // Extract file extension from filename
@@ -379,8 +459,14 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
 
   const handlePreview = async (file: DriveFileItem) => {
     try {
-      // Use the filename directly as the path parameter
-      const viewUrl = `${api.defaults.baseURL}/v1/file/path/view?path=${encodeURIComponent(file.filename)}`;
+      // Extract file extension from filename
+      const fileExtension = file.filename.split('.').pop() || '';
+      
+      // Concatenate fileId with extension as required by the API
+      const pathParam = fileExtension ? `${file.fileId}.${fileExtension}` : file.fileId;
+      
+      // Use the same format as download (fileId.extension)
+      const viewUrl = `${api.defaults.baseURL}/v1/file/path/view?path=${encodeURIComponent(pathParam)}`;
       
       // Get auth token for the request
       const token = localStorage.getItem('auth_token');
@@ -538,7 +624,7 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
         handleDownload(file);
         break;
       case 'share':
-        console.log('Share file:', file.filename);
+        handleShare(file);
         break;
       case 'rename':
         setFileToRename(file);
@@ -599,85 +685,83 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
   }
 
   return (
-    <div className="space-y-6">
-      {/* Simple Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-2 flex items-center">
-            <HardDrive className="w-8 h-8 mr-3" />
-            My Drive
-          </h1>
-          <p className="text-gray-400">
-            {files.length} total files • {filteredFiles.length} in current directory
-          </p>
-        </div>
-        <div className="flex gap-3 items-center">
-          {/* Upload to Current Directory Button */}
-          <Button
-            onClick={() => handleFolderClick(currentPath)}
-            className="bg-green-600 hover:bg-green-700 text-white"
-            size="sm"
-          >
-            <Upload className="w-4 h-4 mr-2" />
-            Upload Here
-          </Button>
-          
-          {/* Create Folder Button */}
-          <Button
-            onClick={handleCreateFolder}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-            size="sm"
-          >
-            <FolderPlus className="w-4 h-4 mr-2" />
-            Add Folder
-          </Button>
-          
-          {/* Search */}
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <Input
-              placeholder="Search files..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-zinc-800/50 border-zinc-700 text-white placeholder-gray-400 w-64"
-            />
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* Header Section - Fixed */}
+      <div className="flex-shrink-0 space-y-4 sm:space-y-6">
+        {/* Simple Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 flex items-center">
+              <HardDrive className="w-6 h-6 sm:w-8 sm:h-8 mr-2 sm:mr-3 flex-shrink-0" />
+              <span className="truncate">My Drive</span>
+            </h1>
+            <p className="text-gray-400 text-sm sm:text-base">
+              {files.length} total files • {filteredFiles.length} in current directory
+            </p>
           </div>
-          
-          {/* View Toggle */}
-          <div className="flex border border-zinc-700 rounded-lg overflow-hidden">
+          <div className="flex gap-2 sm:gap-3 items-center flex-wrap">
+            {/* Upload to Current Directory Button */}
             <Button
-              variant={viewMode === 'grid' ? 'default' : 'ghost'}
+              onClick={() => handleFolderClick(currentPath)}
+              className="bg-green-600 hover:bg-green-700 text-white text-sm sm:text-base px-3 sm:px-4 py-2"
               size="sm"
-              onClick={() => setViewMode('grid')}
-              className={`px-3 py-2 ${
-                viewMode === 'grid'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-zinc-800/50 text-gray-400 hover:text-white hover:bg-zinc-700'
-              }`}
             >
-              <Grid3X3 className="w-4 h-4" />
+              <Upload className="w-4 h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Upload Here</span>
+              <span className="sm:hidden">Upload</span>
             </Button>
+            
+            {/* Create Folder Button */}
             <Button
-              variant={viewMode === 'list' ? 'default' : 'ghost'}
+              onClick={handleCreateFolder}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-sm sm:text-base px-3 sm:px-4 py-2"
               size="sm"
-              onClick={() => setViewMode('list')}
-              className={`px-3 py-2 ${
-                viewMode === 'list'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-zinc-800/50 text-gray-400 hover:text-white hover:bg-zinc-700'
-              }`}
             >
-              <List className="w-4 h-4" />
+              <FolderPlus className="w-4 h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Add Folder</span>
+              <span className="sm:hidden">Folder</span>
             </Button>
+            
+            {/* View Toggle */}
+            <div className="flex border border-zinc-700 rounded-lg overflow-hidden">
+              <Button
+                variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('grid')}
+                className={`px-2 sm:px-3 py-2 ${
+                  viewMode === 'grid'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-zinc-800/50 text-gray-400 hover:text-white hover:bg-zinc-700'
+                }`}
+              >
+                <Grid3X3 className="w-4 h-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('list')}
+                className={`px-2 sm:px-3 py-2 ${
+                  viewMode === 'list'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-zinc-800/50 text-gray-400 hover:text-white hover:bg-zinc-700'
+                }`}
+              >
+                <List className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </div>
+
+        {/* Breadcrumb Navigation */}
+        <DriveBreadcrumb 
+          currentPath={currentPath}
+          onNavigate={handleNavigateToPath}
+        />
       </div>
 
-      {/* Breadcrumb Navigation */}
-      <DriveBreadcrumb 
-        currentPath={currentPath}
-        onNavigate={handleNavigateToPath}
-      />
+      {/* Content Area - Scrollable */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden mt-4 sm:mt-6 min-h-0">
+        <div className="space-y-4 sm:space-y-6 pb-4 sm:pb-6">
 
       {/* Directory Folders */}
       {!isLoading && getSubDirectories().length > 0 && (
@@ -725,11 +809,6 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
             ))}
           </div>
         </div>
-      )}
-
-      {/* Drive Stats */}
-      {!isLoading && (
-        <DriveStats stats={mockStats} />
       )}
 
       {/* Loading Skeleton */}
@@ -987,26 +1066,36 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
           setNewFileName('');
         }
       }}>
-        <SheetContent side="right" className="w-[400px] sm:w-[540px] bg-black border-zinc-800">
-          <SheetHeader>
-            <SheetTitle className="text-white flex items-center gap-2">
-              <Edit3 className="w-5 h-5" />
+        <SheetContent 
+          side="right" 
+          className="w-full sm:w-[400px] md:w-[540px] bg-white dark:bg-black border-gray-200 dark:border-zinc-800 p-4 sm:p-6"
+        >
+          <SheetHeader className="pb-4">
+            <SheetTitle className="text-gray-900 dark:text-white flex items-center gap-2 text-lg font-semibold">
+              <Edit3 className="w-5 h-5 text-blue-600" />
               Rename File
             </SheetTitle>
           </SheetHeader>
           
-          <div className="mt-6 space-y-6">
+          <div className="space-y-6">
             {fileToRename && (
-              <div className="space-y-4">
-                <div className="p-4 bg-zinc-900/50 rounded-lg border border-zinc-800">
-                  <h3 className="text-white font-medium mb-3">Current filename</h3>
-                  <p className="text-gray-300 bg-zinc-800 px-3 py-2 rounded border">
-                    {fileToRename.filename}
-                  </p>
+              <div className="space-y-6">
+                <div className="p-4 bg-gray-50 dark:bg-zinc-900/50 rounded-lg border border-gray-200 dark:border-zinc-800">
+                  <h3 className="text-gray-900 dark:text-white font-semibold mb-3 text-sm uppercase tracking-wide">
+                    Current filename
+                  </h3>
+                  <div className="bg-white dark:bg-zinc-800 px-4 py-3 rounded-md border border-gray-200 dark:border-zinc-700">
+                    <p className="text-gray-800 dark:text-gray-200 font-mono text-sm break-all">
+                      {fileToRename.filename}
+                    </p>
+                  </div>
                 </div>
                 
-                <div className="space-y-2">
-                  <label htmlFor="newFileName" className="text-white font-medium">
+                <div className="space-y-3">
+                  <label 
+                    htmlFor="newFileName" 
+                    className="text-gray-900 dark:text-white font-semibold text-sm uppercase tracking-wide block"
+                  >
                     New filename
                   </label>
                   <Input
@@ -1014,33 +1103,155 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
                     placeholder="Enter new filename"
                     value={newFileName}
                     onChange={(e) => setNewFileName(e.target.value)}
-                    className="bg-zinc-800 border-zinc-700 text-white"
+                    className="bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 h-12 text-base"
                     onKeyPress={(e) => {
                       if (e.key === 'Enter') {
                         handleRename();
                       }
                     }}
                   />
-                  <p className="text-gray-400 text-sm">
+                  <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">
                     Keep the file extension to maintain file type
                   </p>
                 </div>
                 
-                <div className="flex gap-3 pt-4">
+                <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-gray-200 dark:border-zinc-800">
                   <Button
                     onClick={() => setRenameModalOpen(false)}
                     variant="outline"
-                    className="flex-1 border-zinc-700 text-gray-300 hover:text-white"
+                    className="w-full sm:w-auto sm:flex-1 h-12 border-gray-300 dark:border-zinc-700 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-zinc-800 font-medium"
                   >
                     Cancel
                   </Button>
                   <Button
                     onClick={handleRename}
                     disabled={!newFileName.trim() || newFileName === fileToRename.filename}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                    className="w-full sm:w-auto sm:flex-1 h-12 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-zinc-700 text-white font-medium shadow-sm"
                   >
                     Rename File
                   </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Share Modal */}
+      <Sheet open={shareModalOpen} onOpenChange={(open) => {
+        setShareModalOpen(open);
+        if (!open) {
+          setFileToShare(null);
+          setPublicLink('');
+          setShareToken('');
+          setLinkCopied(false);
+        }
+      }}>
+        <SheetContent 
+          side="right" 
+          className="w-full sm:w-[400px] md:w-[540px] bg-white dark:bg-black border-gray-200 dark:border-zinc-800 p-4 sm:p-6"
+        >
+          <SheetHeader className="pb-4">
+            <SheetTitle className="text-gray-900 dark:text-white flex items-center gap-2 text-lg font-semibold">
+              <Link className="w-5 h-5 text-blue-600" />
+              Share File
+            </SheetTitle>
+          </SheetHeader>
+          
+          <div className="space-y-6">
+            {fileToShare && (
+              <div className="space-y-6">
+                {/* File Info */}
+                <div className="p-4 bg-gray-50 dark:bg-zinc-900/50 rounded-lg border border-gray-200 dark:border-zinc-800">
+                  <h3 className="text-gray-900 dark:text-white font-semibold mb-3 text-sm uppercase tracking-wide">
+                    File to share
+                  </h3>
+                  <div className="bg-white dark:bg-zinc-800 px-4 py-3 rounded-md border border-gray-200 dark:border-zinc-700">
+                    <p className="text-gray-800 dark:text-gray-200 font-mono text-sm break-all">
+                      {fileToShare.filename}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Public Link Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-gray-900 dark:text-white font-semibold text-sm uppercase tracking-wide">
+                      Public Link
+                    </h3>
+                    {!publicLink && (
+                      <Button
+                        onClick={generatePublicLink}
+                        disabled={isGeneratingLink}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm"
+                      >
+                        {isGeneratingLink ? 'Generating...' : 'Generate Link'}
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {publicLink && (
+                    <div className="space-y-3">
+                      <div className="flex gap-2">
+                        <Input
+                          value={publicLink}
+                          readOnly
+                          className="bg-gray-50 dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-white font-mono text-sm"
+                        />
+                        <Button
+                          onClick={copyToClipboard}
+                          variant="outline"
+                          className="px-3 border-gray-300 dark:border-zinc-700 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                        >
+                          {linkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        </Button>
+                      </div>
+                      
+                      {linkCopied && (
+                        <p className="text-green-600 dark:text-green-400 text-sm font-medium">
+                          ✓ Link copied to clipboard!
+                        </p>
+                      )}
+
+                      {/* Show token for debugging/advanced users */}
+                      {shareToken && (
+                        <details className="mt-3">
+                          <summary className="text-gray-600 dark:text-gray-400 text-sm cursor-pointer hover:text-gray-800 dark:hover:text-gray-200">
+                            Advanced Details
+                          </summary>
+                          <div className="mt-2 p-3 bg-gray-100 dark:bg-zinc-900 rounded-md">
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Share Token:</p>
+                            <code className="text-xs text-gray-800 dark:text-gray-200 break-all">{shareToken}</code>
+                          </div>
+                        </details>
+                      )}
+                      
+                      <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
+                        <p className="text-blue-800 dark:text-blue-200 text-sm">
+                          <strong>Share this link:</strong> Anyone with this link can view and download the file. The link will remain active until you revoke access.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-gray-200 dark:border-zinc-800">
+                  <Button
+                    onClick={() => setShareModalOpen(false)}
+                    variant="outline"
+                    className="w-full sm:w-auto sm:flex-1 h-12 border-gray-300 dark:border-zinc-700 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-zinc-800 font-medium"
+                  >
+                    Close
+                  </Button>
+                  {publicLink && (
+                    <Button
+                      onClick={copyToClipboard}
+                      className="w-full sm:w-auto sm:flex-1 h-12 bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm"
+                    >
+                      {linkCopied ? 'Copied!' : 'Copy Link'}
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
@@ -1102,6 +1313,8 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
           </div>
         </SheetContent>
       </Sheet>
+        </div>
+      </div>
     </div>
   );
 }

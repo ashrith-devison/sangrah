@@ -138,23 +138,23 @@ export default function DriveFileList({
   return (
     <div className="bg-zinc-900/30 border border-zinc-800 rounded-lg overflow-hidden">
       {/* Header */}
-      <div className="grid grid-cols-12 gap-4 p-4 border-b border-zinc-800 bg-zinc-900/50">
+      <div className="grid grid-cols-12 gap-2 sm:gap-4 p-3 sm:p-4 border-b border-zinc-800 bg-zinc-900/50">
         <div 
-          className="col-span-5 md:col-span-4 text-gray-300 font-medium cursor-pointer hover:text-white transition-colors flex items-center gap-2"
+          className="col-span-6 sm:col-span-5 md:col-span-4 text-gray-300 font-medium cursor-pointer hover:text-white transition-colors flex items-center gap-2 text-sm sm:text-base"
           onClick={() => handleSort('name')}
         >
           Name
           <SortIcon column="name" />
         </div>
         <div 
-          className="col-span-2 hidden sm:block text-gray-300 font-medium cursor-pointer hover:text-white transition-colors flex items-center gap-2"
+          className="col-span-2 hidden sm:block text-gray-300 font-medium cursor-pointer hover:text-white transition-colors flex items-center gap-2 text-sm sm:text-base"
           onClick={() => handleSort('type')}
         >
           Type
           <SortIcon column="type" />
         </div>
         <div 
-          className="col-span-2 hidden md:block text-gray-300 font-medium cursor-pointer hover:text-white transition-colors flex items-center gap-2"
+          className="col-span-2 hidden md:block text-gray-300 font-medium cursor-pointer hover:text-white transition-colors flex items-center gap-2 text-sm sm:text-base"
           onClick={() => handleSort('size')}
         >
           Size
@@ -181,18 +181,18 @@ export default function DriveFileList({
           return (
             <div 
               key={file.id} 
-              className="grid grid-cols-12 gap-4 p-4 hover:bg-zinc-800/30 transition-colors cursor-pointer group"
+              className="grid grid-cols-12 gap-2 sm:gap-4 p-3 sm:p-4 hover:bg-zinc-800/30 transition-colors cursor-pointer group"
               onClick={() => handleAction('view', file)}
             >
               {/* File Name */}
-              <div className="col-span-5 md:col-span-4">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg bg-zinc-800/50 ${iconColor}`}>
-                    <FileIcon className="w-4 h-4" />
+              <div className="col-span-6 sm:col-span-5 md:col-span-4">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className={`p-1.5 sm:p-2 rounded-lg bg-zinc-800/50 ${iconColor} flex-shrink-0`}>
+                    <FileIcon className="w-3 h-3 sm:w-4 sm:h-4" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-white font-medium truncate">{file.filename}</div>
-                    <div className="text-xs text-gray-500 truncate">
+                    <div className="text-white font-medium truncate text-sm sm:text-base">{file.filename}</div>
+                    <div className="text-xs text-gray-500 truncate hidden sm:block">
                       {file.path && file.path !== '/home' && `📁 ${file.path}`}
                     </div>
                   </div>
