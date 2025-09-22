@@ -16,10 +16,15 @@ func InitJWTSecret(cfg *config.Config) {
 
 // GenerateJWT generates a JWT token for a user.
 func GenerateJWT(userID string, email string, isAdmin bool) (string, error) {
+	role := "user"
+	if isAdmin {
+		role = "admin"
+	}
 	claims := jwt.MapClaims{
 		"user_id":  userID,
 		"email":    email,
 		"is_admin": isAdmin,
+		"role":     role,
 		"exp":      time.Now().Add(time.Hour * 72).Unix(), // Token expires in 72 hours
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

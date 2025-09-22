@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -44,7 +44,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	var req dto.RegisterRequest
 	decodeErr := json.NewDecoder(r.Body).Decode(&req)
 	if decodeErr != nil {
-		rawBody, _ := ioutil.ReadAll(r.Body)
+		rawBody, _ := io.ReadAll(r.Body)
 		logger.Error("Invalid request payload", zap.String("requestID", requestID), zap.Error(decodeErr), zap.String("rawBody", string(rawBody)))
 		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid request payload", decodeErr.Error())
 		return
