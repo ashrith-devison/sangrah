@@ -18,7 +18,6 @@ vendor/
 Thumbs.db
 
 # Environment and secrets
-.env
 
 # Temporary files
 *.tmp
