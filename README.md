@@ -1,957 +1,219 @@
-# 📁 FileVault Backend - Complete Manual
 
-> A production-grade file management system built with Go, featuring secure authentication, deduplication, and comprehensive API documentation.
 
-[![Go Version](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://golang.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-blue.svg)](https://postgresql.org/)
-[![Swagger](https://img.shields.io/badge/Swagger-API_Docs-green.svg)](http://localhost:8080/api/docs/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://docker.com/)
+# 🚀 MyDrive File Vault System
 
----
-
-## 📋 Table of Contents
-
-### 🚀 Getting Started
-- [Quick Start](#-quick-start)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Running the Application](#running-the-application)
-
-### 🏗️ Architecture & Design
-- [System Overview](#-system-overview)
-- [Layered Architecture](#layered-architecture)
-- [Dependency Injection Pattern](#dependency-injection-pattern)
-- [Database Schema](#database-schema)
-- [API Design](#api-design)
-
-### 📚 API Reference
-- [Authentication](#authentication)
-- [File Management](#file-management)
-- [Admin Panel](#admin-panel)
-- [Analytics](#analytics)
-- [Public Sharing](#public-sharing)
-
-### 🔧 Development
-- [Project Structure](#project-structure)
-- [Key Components](#key-components)
-- [Testing](#testing)
-- [Deployment](#deployment)
-
-### 🐛 Troubleshooting
-- [Common Issues](#common-issues)
-- [Debugging](#debugging)
-- [Logs](#logs)
-
-### 🤝 Contributing
-- [Development Setup](#development-setup)
-- [Code Style](#code-style)
-- [Pull Requests](#pull-requests)
+<div align="center">
+  <img src="https://via.placeholder.com/400x120/6e73fa/ffffff?text=MyDrive+File+Vault" alt="MyDrive Logo" />
+  <br>
+  <b>Modern, secure, and scalable cloud storage with advanced file management</b>
+  <br>
+  <br>
+  <b>📝 Author: Ashrith Sai J (22BCB7308)</b><br>
+  <b>📧 Email: ashrithsai.devison@gmail.com</b>
+  <br>
+  <a href="./client/">Frontend Docs</a> • <a href="./server/">Backend Docs</a> • <a href="#-quick-start">Quick Start</a> • <a href="#-contributing">Contributing</a>
+</div>
 
 ---
 
-## 🚀 Quick Start
+## 🌟 Features
+
+| Icon | Feature | Description |
+|------|---------|-------------|
+| 🔐 | Secure Authentication | JWT, bcrypt, role-based access |
+| 📁 | File Deduplication | SHA-256, space savings |
+| 🔍 | Advanced Search | Name, MIME type, metadata |
+| 👥 | User Management | Admin/user roles, permissions |
+| 📊 | Analytics Dashboard | Usage stats, deduplication ratio |
+| 🌐 | Public Sharing | Token-based sharing |
+| 🐳 | Docker Ready | Containerized deployment |
+| 📚 | API Docs | Auto-generated Swagger |
+| 🎨 | Modern UI/UX | Responsive, dark theme |
+
+---
+
+
+## ⚡ Setup & Getting Started
 
 ### Prerequisites
-- **Go 1.21+** - [Download here](https://golang.org/dl/)
-- **PostgreSQL 15+** - [Download here](https://postgresql.org/download/)
-- **Docker & Docker Compose** (optional, for containerized deployment)
+- 🐳 Docker & Docker Compose (recommended)
+- 🟢 Node.js 18+
+- 🐹 Go 1.21+
+- 🐘 PostgreSQL 15+
 
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/your-username/filevault-backend.git
-   cd filevault-backend
-   ```
-
-2. **Install dependencies**
-   ```bash
-   go mod download
-   ```
-
-3. **Set up environment variables**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
-
-4. **Run database migrations**
-   ```bash
-   # Using Docker
-   docker-compose up -d postgres
-
-   # Or manually create database and run migrations
-   psql -U postgres -d filevaultdb -f data/migrations.sql
-   ```
-
-5. **Start the server**
-   ```bash
-   go run main.go
-   ```
-
-6. **Access the API**
-   - **API Documentation**: http://localhost:8080/api/docs/
-   - **Health Check**: http://localhost:8080/api/v1/health
-
----
-
-## 🏗️ Architecture & Design
-
-### System Overview
-
-FileVault is a modern, scalable file management system designed with clean architecture principles. The system provides secure file storage with deduplication, user authentication, and comprehensive API access.
-
-```mermaid
-graph TB
-    subgraph "Client Layer"
-        A[Web/Mobile Apps]
-        B[API Clients]
-    end
-
-    subgraph "API Gateway"
-        C[REST API]
-        D[Swagger Docs]
-    end
-
-    subgraph "Application Layer"
-        E[Controllers]
-        F[Services]
-        G[DTOs]
-    end
-
-    subgraph "Domain Layer"
-        H[Business Logic]
-        I[Validation]
-        J[Security]
-    end
-
-    subgraph "Infrastructure Layer"
-        K[Repositories]
-        L[PostgreSQL]
-        M[File Storage]
-        N[Cache/Redis]
-    end
-
-    A --> C
-    B --> C
-    C --> E
-    E --> F
-    F --> H
-    H --> K
-    K --> L
-    K --> M
-    F --> N
+### 🚀 Docker Setup (Recommended)
+```bash
+git clone <repository-url>
+cd filevault-backend
+docker compose build
+docker compose up -d
+# Frontend: http://localhost:3000
+# Backend: http://localhost:8080
+# Swagger Docs: http://localhost:8080/api/docs/
 ```
 
-### Layered Architecture
-
-FileVault follows a clean, layered architecture that separates concerns and enables maintainability:
-
-#### 1. **Presentation Layer (Controllers)**
-- HTTP request/response handling
-- Input validation and sanitization
-- Response formatting
-- Error handling
-
-#### 2. **Application Layer (Services)**
-- Business logic orchestration
-- Use case implementation
-- Transaction management
-- Cross-cutting concerns
-
-#### 3. **Domain Layer (Entities & Value Objects)**
-- Core business entities
-- Business rules and invariants
-- Domain services
-
-#### 4. **Infrastructure Layer (Repositories & External Services)**
-- Data persistence
-- External API integrations
-- File storage operations
-- Caching and messaging
-
-### Dependency Injection Pattern
-
-FileVault uses a sophisticated dependency injection pattern for maximum testability and maintainability:
-
-```mermaid
-classDiagram
-    class Controller {
-        +service: ServiceInterface
-        +HandleRequest()
-    }
-
-    class ServiceInterface {
-        +<<interface>> BusinessMethod()
-    }
-
-    class ServiceImpl {
-        +repo: Repository
-        +config: Config
-        +logger: Logger
-        +BusinessMethod()
-    }
-
-    class Repository {
-        +db: Database
-        +FindById()
-        +Save()
-    }
-
-    Controller --> ServiceInterface
-    ServiceImpl ..|> ServiceInterface
-    ServiceImpl --> Repository
+### 🛠️ Manual Setup
+#### Backend
+```bash
+cd server
+go mod download
+cp .env.example .env # Edit with your DB/JWT config
+psql -U postgres -d filevaultdb -f data/migrations.sql
+go run main.go
+# Backend: http://localhost:8080
+# Swagger Docs: http://localhost:8080/api/docs/
+```
+#### Frontend
+```bash
+cd client
+npm install
+npm run dev
+# Frontend: http://localhost:3000
 ```
 
-#### Key Benefits:
-- **Testability**: Easy mocking of dependencies
-- **Flexibility**: Swap implementations without code changes
-- **Maintainability**: Clear separation of concerns
-- **Scalability**: Easy to add new features
-
-### Database Schema
-
-```sql
--- Users table for authentication
-CREATE TABLE users (
-    username VARCHAR(255) PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    is_admin BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- File metadata with deduplication support
-CREATE TABLE file_metadata (
-    sha256 VARCHAR(64) PRIMARY KEY,
-    filename VARCHAR(255) NOT NULL,
-    mime_type VARCHAR(128) NOT NULL,
-    path TEXT NOT NULL,
-    reference_id VARCHAR(64) NOT NULL,
-    reference_count INT DEFAULT 1,
-    file_size FLOAT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- User-file relationships and permissions
-CREATE TABLE user_files (
-    id SERIAL PRIMARY KEY,
-    username VARCHAR(255) NOT NULL REFERENCES users(username) ON DELETE CASCADE,
-    file_id VARCHAR(64) NOT NULL REFERENCES file_metadata(sha256) ON DELETE CASCADE,
-    filename VARCHAR(255) NOT NULL,
-    permission VARCHAR(32) NOT NULL DEFAULT 'owner',
-    is_public BOOLEAN DEFAULT FALSE,
-    download_count INT DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (username, file_id)
-);
-
--- Public sharing tokens
-CREATE TABLE public_shares (
-    id SERIAL PRIMARY KEY,
-    token VARCHAR(128) UNIQUE NOT NULL,
-    file_id VARCHAR(64) NOT NULL REFERENCES file_metadata(sha256) ON DELETE CASCADE,
-    username VARCHAR(255) NOT NULL REFERENCES users(username) ON DELETE CASCADE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Indexes for performance
-CREATE INDEX idx_file_metadata_filename ON file_metadata(filename);
-CREATE INDEX idx_file_metadata_mime_type ON file_metadata(mime_type);
-CREATE INDEX idx_user_files_username ON user_files(username);
-CREATE INDEX idx_public_shares_token ON public_shares(token);
-```
-
-### API Design
-
-FileVault follows RESTful API design principles with consistent patterns:
-
-#### Response Format
-```json
-{
-  "status": "success",
-  "message": "Operation completed successfully",
-  "data": {
-    // Response data
-  }
-}
-```
-
-#### Error Format
-```json
-{
-  "status": "error",
-  "message": "Human-readable error message",
-  "error": "Technical error details"
-}
-```
-
-#### HTTP Status Codes
-- `200` - Success
-- `201` - Created
-- `400` - Bad Request
-- `401` - Unauthorized
-- `403` - Forbidden
-- `404` - Not Found
-- `409` - Conflict
-- `500` - Internal Server Error
-
----
-
-## 📚 API Reference
-
-### Authentication
-
-#### Register User
-```http
-POST /api/v1/auth/register
-Content-Type: application/json
-
-{
-  "username": "johndoe",
-  "email": "john@example.com",
-  "password": "securepassword123"
-}
-```
-
-#### Login
-```http
-POST /api/v1/auth/login
-Content-Type: application/json
-
-{
-  "email": "john@example.com",
-  "password": "securepassword123"
-}
-```
-
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "Login successful",
-  "data": {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-  }
-}
-```
-
-### File Management
-
-#### Upload File
-```http
-POST /api/v1/file/upload
-Content-Type: multipart/form-data
-
-file: [binary file data]
-uploader: johndoe
-```
-
-#### Search Files
-```http
-GET /api/v1/file/search?mimeType=application/pdf&filename=document&limit=10
-Authorization: Bearer <jwt_token>
-```
-
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "Files found successfully",
-  "data": [
-    {
-      "filename": "document.pdf",
-      "mimeType": "application/pdf",
-      "sha256": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
-      "fileSize": 1024000,
-      "uploadDate": "2025-09-19T10:30:00Z",
-      "uploader": "johndoe"
-    }
-  ]
-}
-```
-
-#### Share File
-```http
-POST /api/v1/file/share
-Authorization: Bearer <jwt_token>
-Content-Type: application/json
-
-{
-  "owner": "johndoe",
-  "recipient": "janedoe",
-  "fileId": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
-  "permission": "viewer"
-}
-```
-
-### Admin Panel
-
-#### List All Files
-```http
-GET /api/v1/admin/files
-Authorization: Bearer <admin_jwt_token>
-```
-
-#### Upload File as Admin
-```http
-POST /api/v1/admin/upload
-Authorization: Bearer <admin_jwt_token>
-Content-Type: multipart/form-data
-
-file: [binary file data]
-filename: document.pdf
-uploader: johndoe
-```
-
-#### Get Usage Statistics
-```http
-GET /api/v1/admin/stats
-Authorization: Bearer <admin_jwt_token>
-```
-
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "Stats fetched",
-  "data": {
-    "totalFiles": 150,
-    "totalUsers": 25,
-    "totalDownloads": 1250,
-    "totalStorageUsed": 524288000
-  }
-}
-```
-
-### Analytics
-
-#### Storage Analytics
-```http
-GET /api/v1/file/storage/analytics
-```
-
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "Storage analytics",
-  "data": {
-    "unique_uploaders": 25,
-    "logical_files": 150,
-    "physical_files": 120,
-    "total_storage_bytes": 524288000,
-    "space_saved_bytes": 104857600,
-    "space_saved_mb": 100
-  }
-}
-```
-
-### Public Sharing
-
-#### Create Public Share
-```http
-POST /api/v1/file/public-share
-Content-Type: application/json
-
-{
-  "fileId": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
-  "username": "johndoe"
-}
-```
-
-#### Access Public File
-```http
-GET /api/v1/file/public/view?token=abc123def456
+#### Database (Docker)
+```bash
+docker run -d \
+  --name filevault-postgres \
+  -e POSTGRES_USER=filevault \
+  -e POSTGRES_PASSWORD=securepassword \
+  -e POSTGRES_DB=filevaultdb \
+  -p 5432:5432 \
+  postgres:15
 ```
 
 ---
 
-## 🔧 Development
+## 📖 Swagger API Documentation
 
-### Project Structure
+Easily explore and test all backend endpoints using the built-in Swagger UI:
 
+- **URL:** [http://localhost:8080/api/docs/](http://localhost:8080/api/docs/)
+- **Features:**
+  - Interactive API explorer
+  - Try out requests directly in the browser
+  - View request/response models and error codes
+
+Swagger is automatically generated and always up-to-date with the backend code. Perfect for development, testing, and integration!
+
+---
+
+## 🗂️ Project Structure
 ```
 filevault-backend/
-├── 📁 src/
-│   ├── 📁 controllers/     # HTTP request handlers
-│   │   ├── auth.controllers.go
-│   │   ├── file.controllers.go
-│   │   ├── admin.controllers.go
-│   │   └── file.search.controllers.go
-│   ├── 📁 dto/            # Data Transfer Objects
-│   │   ├── auth.go
-│   │   ├── file.meta-data.go
-│   │   ├── file.search.go
-│   │   └── admin.go
-│   ├── 📁 repos/          # Database repositories
-│   │   ├── auth.repo.go
-│   │   ├── file.meta-data.repo.go
-│   │   ├── file.search.repo.go
-│   │   └── admin.repo.go
-│   ├── 📁 routers/        # Route definitions
-│   │   ├── auth.routes.go
-│   │   ├── file.routes.go
-│   │   └── admin.routes.go
-│   ├── 📁 services/       # Service interfaces
-│   │   ├── auth.go
-│   │   ├── files.go
-│   │   └── admin.go
-│   ├── 📁 servicesImpl/   # Service implementations
-│   │   ├── auth.go
-│   │   ├── file.go
-│   │   ├── file.search.go
-│   │   └── admin.go
-│   ├── 📁 middleware/     # HTTP middleware
-│   │   └── admin.go
-│   └── 📁 utils/          # Utility functions
-│       ├── apiResponse.go
-│       ├── apiError.go
-│       ├── jwt.conf.go
-│       └── postgres.conf.go
-├── 📁 storage/           # File storage directory
-├── 📁 tmp/              # Temporary files
-├── 📁 docs/             # Generated documentation
-├── 📄 main.go           # Application entry point
-├── 📄 go.mod            # Go module file
-├── 📄 docker-compose.yaml
-├── 📄 Dockerfile
-├── 📄 .env              # Environment configuration
-└── 📄 README.md         # This file
-```
-
-### Key Components
-
-#### Controllers
-HTTP request handlers that:
-- Parse incoming requests
-- Validate input data
-- Call appropriate service methods
-- Format and return responses
-
-#### Services
-Business logic layer that:
-- Implement complex business rules
-- Coordinate between multiple repositories
-- Handle transactions
-- Provide clean interfaces for controllers
-
-#### Repositories
-Data access layer that:
-- Execute database queries
-- Map database results to domain objects
-- Handle database-specific optimizations
-- Provide CRUD operations
-
-#### DTOs (Data Transfer Objects)
-Request/response models that:
-- Define API contract
-- Validate input data
-- Format output data
-- Isolate internal models from external API
-
-### Testing
-
-#### Unit Tests
-```bash
-# Run all tests
-go test ./...
-
-# Run tests with coverage
-go test -cover ./...
-
-# Run specific package tests
-go test ./src/servicesImpl/...
-```
-
-#### Integration Tests
-```bash
-# Run with database
-go test -tags=integration ./...
-```
-
-#### API Testing
-```bash
-# Using curl
-curl -X POST http://localhost:8080/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"username":"test","email":"test@example.com","password":"password"}'
-
-# Using Swagger UI
-open http://localhost:8080/api/docs/
-```
-
-### Deployment
-
-#### Docker Deployment
-```bash
-# Build and run with Docker Compose
-docker-compose up -d
-
-# View logs
-docker-compose logs -f backend
-
-# Scale services
-docker-compose up -d --scale backend=3
-```
-
-#### Manual Deployment
-```bash
-# Build for production
-GOOS=linux GOARCH=amd64 go build -o filevault-backend main.go
-
-# Run with environment variables
-export PORT=8080
-export DB_URL="postgres://user:pass@host:5432/db?sslmode=disable"
-export JWT_SECRET="your-secret-key"
-./filevault-backend
-```
-
-#### Environment Configuration
-```bash
-# Production environment
-cp .env.prod .env
-# Edit .env with production values
-
-# Development environment
-cp .env.dev .env
+├── client/   # Next.js frontend
+├── server/   # Go backend
+├── docker-compose.yaml
+└── README.md
 ```
 
 ---
 
-## 🐛 Troubleshooting
+## 🛠️ Configuration
 
-### Common Issues
-
-#### 1. Database Connection Failed
-**Error:** `pq: password authentication failed for user`
-**Solution:**
-```bash
-# Check PostgreSQL service
-sudo systemctl status postgresql
-
-# Reset password
-sudo -u postgres psql
-ALTER USER filevault PASSWORD 'newpassword';
+### Backend (`server/.env`)
+```env
+DATABASE_URL=postgres://filevault:securepassword@localhost:5432/filevaultdb
+JWT_SECRET=your-secret-key
+PORT=8080
+STORAGE_PATH=./storage
 ```
 
-#### 2. File Upload Fails
-**Error:** `no such file or directory`
-**Solution:**
-```bash
-# Create storage directory
-mkdir -p storage
-chmod 755 storage
-
-# Check disk space
-df -h
+### Frontend (`client/.env.local`)
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8080
+NEXT_PUBLIC_APP_NAME=MyDrive
+NEXT_PUBLIC_APP_VERSION=1.0.0
 ```
 
-#### 3. JWT Token Invalid
-**Error:** `invalid token`
-**Solution:**
-```bash
-# Check JWT secret consistency
-echo $JWT_SECRET
+---
 
-# Verify token expiration
-# Tokens expire in 72 hours by default
+## 📚 Documentation
+- [Frontend Docs](./client/README.md)
+- [Backend Docs](./server/README.md)
+- [API Docs](http://localhost:8080/api/docs/)
+- [Contributing Guide](./CONTRIBUTING.md)
+- [Deployment Guide](./DEPLOYMENT.md)
+
+---
+
+## 🔗 Key API Endpoints
+
+| Category | Endpoint | Description |
+|----------|----------|-------------|
+| Auth     | POST /api/v1/auth/login | User login |
+| Auth     | POST /api/v1/auth/register | User registration |
+| File     | GET /api/v1/file/owned?username= | Get user files |
+| File     | POST /api/v1/file/upload-meta | Upload file metadata |
+| File     | POST /api/v1/file/rename | Rename files/folders |
+| File     | GET /api/v1/file/path/download?path= | Download file |
+| File     | GET /api/v1/file/path/view?path= | Preview file |
+| File     | POST /api/v1/file/delete-filename | Delete file/folder |
+| Admin    | GET /api/v1/admin/users | List users (admin) |
+| Admin    | GET /api/v1/admin/stats | System stats (admin) |
+| Admin    | POST /api/v1/admin/generate-token | Impersonate user (admin) |
+| Share    | POST /api/v1/file/share | Generate share link |
+| Share    | GET /api/v1/file/shared/{token} | Access shared file |
+
+---
+
+## 🧪 Testing & Development
+
+### Scripts
+```bash
+# Start all services
+docker compose up -d
+# Stop all services
+docker compose down
+# View logs
+docker compose logs -f
+# Frontend
+cd client && npm run dev
+# Backend
+cd server && go run main.go
+# Backend tests
+cd server && go test ./...
 ```
 
-#### 4. Port Already in Use
-**Error:** `bind: address already in use`
-**Solution:**
-```bash
-# Find process using port
-lsof -i :8080
+---
 
-# Kill process
-kill -9 <PID>
+## 🚨 Troubleshooting
 
-# Or use different port
-export PORT=8081
-```
-
-### Debugging
-
-#### Enable Debug Logging
-```bash
-# Set log level
-export LOG_LEVEL=debug
-
-# View structured logs
-go run main.go | jq .
-```
-
-#### Database Debugging
-```bash
-# Connect to database
-docker exec -it filevault-postgres psql -U filevault -d filevaultdb
-
-# Check tables
-\d
-
-# View recent queries
-SELECT * FROM user_files ORDER BY created_at DESC LIMIT 5;
-```
-
-#### API Debugging
-```bash
-# Test endpoints with verbose output
-curl -v http://localhost:8080/api/v1/file/search
-
-# Check request/response headers
-curl -I http://localhost:8080/api/v1/admin/files
-```
-
-### Logs
-
-#### Application Logs
-```bash
-# View recent logs
-tail -f logs/app.log
-
-# Search for specific errors
-grep "ERROR" logs/app.log
-
-# Filter by request ID
-grep "requestID-123" logs/app.log
-```
-
-#### Database Logs
-```bash
-# PostgreSQL logs
-docker logs filevault-postgres
-
-# Query execution logs
-tail -f /var/log/postgresql/postgresql-15-main.log
-```
+- Ensure Docker/PostgreSQL are running
+- Check `.env` files for DB/JWT config
+- For migration issues, verify `server/data/migrations.sql` is applied
+- Kill processes on ports 3000/8080 if needed
 
 ---
 
 ## 🤝 Contributing
 
-### Development Setup
+1. 🍴 Fork the repository
+2. 🌿 Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. 💻 Make changes in `client/` or `server/`
+4. ✅ Test locally
+5. 📤 Push and create a Pull Request
 
-1. **Fork the repository**
-2. **Clone your fork**
-   ```bash
-   git clone https://github.com/your-username/filevault-backend.git
-   cd filevault-backend
-   ```
-
-3. **Create feature branch**
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-
-4. **Set up development environment**
-   ```bash
-   # Install dependencies
-   go mod download
-
-   # Copy environment file
-   cp .env.example .env
-
-   # Run database
-   docker-compose up -d postgres
-
-   # Run migrations
-   go run scripts/migrate.go
-   ```
-
-5. **Run tests**
-   ```bash
-   go test ./...
-   ```
-
-### Code Style
-
-#### Go Standards
-- Follow [Effective Go](https://golang.org/doc/effective_go.html)
-- Use `gofmt` for formatting
-- Follow [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
-
-#### Project Conventions
-```go
-// Interface naming
-type UserServiceInterface interface {
-    GetUser(id string) (*User, error)
-}
-
-// Implementation naming
-type UserService struct {
-    repo UserRepository
-}
-
-// Constructor naming
-func NewUserService(repo UserRepository) *UserService {
-    return &UserService{repo: repo}
-}
-
-// Method naming
-func (s *UserService) GetUser(id string) (*User, error) {
-    return s.repo.FindByID(id)
-}
-```
-
-#### Commit Messages
-```
-feat: add user authentication
-fix: resolve file upload bug
-docs: update API documentation
-style: format code with gofmt
-refactor: simplify service layer
-test: add unit tests for repository
-```
-
-### Pull Requests
-
-#### PR Template
-```markdown
-## Description
-Brief description of changes
-
-## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Breaking change
-- [ ] Documentation update
-
-## Testing
-- [ ] Unit tests pass
-- [ ] Integration tests pass
-- [ ] Manual testing completed
-
-## Checklist
-- [ ] Code follows project style
-- [ ] Documentation updated
-- [ ] Tests added/updated
-- [ ] Breaking changes documented
-```
-
-#### Review Process
-1. **Automated Checks**: CI/CD pipeline runs tests and linting
-2. **Code Review**: At least one maintainer reviews changes
-3. **Testing**: Reviewer tests functionality
-4. **Approval**: PR approved and merged
+**Code Style:**
+- Frontend: ESLint, Prettier
+- Backend: Go fmt, best practices
+- Conventional commits
 
 ---
 
-## 📊 Monitoring & Metrics
+## 📜 License
 
-### Health Checks
-```http
-GET /api/v1/health
-```
-
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "Service is healthy",
-  "data": {
-    "database": "connected",
-    "storage": "accessible",
-    "uptime": "2h 30m"
-  }
-}
-```
-
-### Metrics Endpoints
-```http
-GET /api/v1/metrics
-```
-
-**Response:**
-```json
-{
-  "status": "success",
-  "data": {
-    "total_requests": 1250,
-    "active_users": 25,
-    "storage_used_mb": 512,
-    "error_rate": 0.02
-  }
-}
-```
+MIT License - see [LICENSE](LICENSE)
 
 ---
 
-## 🔒 Security
-
-### Authentication & Authorization
-- JWT tokens with 72-hour expiration
-- Password hashing with bcrypt
-- Admin role-based access control
-- Request rate limiting
-
-### Data Protection
-- File deduplication prevents storage bloat
-- Secure file paths (SHA256-based)
-- Input validation and sanitization
-- SQL injection prevention with prepared statements
-
-### Best Practices
-- Environment-based configuration
-- Secret management
-- Audit logging
-- Regular security updates
-
----
-
-## 📈 Performance
-
-### Optimization Techniques
-- Database indexing on frequently queried columns
-- File deduplication reduces storage needs
-- Connection pooling for database
-- Caching for frequently accessed data
-
-### Benchmarks
-```bash
-# Run performance tests
-go test -bench=. ./...
-
-# Profile application
-go tool pprof http://localhost:8080/debug/pprof/profile
-```
-
----
-
-## 📞 Support
-
-### Documentation
-- **API Docs**: http://localhost:8080/api/docs/
-- **Architecture Docs**: See [Architecture](#architecture--design) section
-- **Deployment Guide**: See [Deployment](#deployment) section
-
-### Community
-- **Issues**: [GitHub Issues](https://github.com/your-username/filevault-backend/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-username/filevault-backend/discussions)
-- **Wiki**: [Project Wiki](https://github.com/your-username/filevault-backend/wiki)
-
-### Contact
-- **Email**: support@filevault.com
-- **Slack**: #filevault-dev
-- **Twitter**: @filevault_dev
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgments
-
-- [Go](https://golang.org/) - The programming language
-- [PostgreSQL](https://postgresql.org/) - Database system
-- [Swagger](https://swagger.io/) - API documentation
-- [Docker](https://docker.com/) - Containerization
-
----
-
-*Built with ❤️ using Go and modern software architecture principles.*
+<div align="center">
+  <br>
+  <b>Built with ❤️ for the future of cloud storage</b>
+  <br>
+  <br>
+  <a href="./client/">Frontend Docs</a> • <a href="./server/">Backend Docs</a> • <a href="#-quick-start">Quick Start</a> • <a href="#-contributing">Contributing</a>
+  <br>
+  <br>
+  <i>MyDrive - Where your files find their perfect home 🏠</i>
+</div>

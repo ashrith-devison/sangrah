@@ -3,13 +3,28 @@ version: '3.8'
 services:
   backend:
     build:
-      context: .
+      context: ./server
       dockerfile: Dockerfile
     container_name: filevault-backend
     ports:
       - "8080:8080"
     depends_on:
       - postgres
+    restart: unless-stopped
+    volumes:
+      - backend_storage:/app/storage
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: filevault-client
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - backend
     restart: unless-stopped
 
   postgres:
@@ -27,3 +42,4 @@ services:
 
 volumes:
   postgres_data:
+  backend_storage:
