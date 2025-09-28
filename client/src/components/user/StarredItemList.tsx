@@ -19,6 +19,8 @@ import {
   Settings,
   StarOff,
   MoreHorizontal,
+  ExternalLink,
+  MoreVertical,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,12 +30,354 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { StarredItemListProps, StarredItem } from '@/types/starred';
+import api from '@/lib/api';
+import { toast } from 'sonner';
+import { useUserStore } from '@/stores/userStore';
+
+// Component to handle authenticated iframe loading with browser compatibility
+function PreviewFrame({ item, getPreviewUrl }: { item: StarredItem; getPreviewUrl: (item: StarredItem) => Promise<{ url: string; mimeType: string } | null> }) {
+  const [blobUrl, setBlobUrl] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [mimeType, setMimeType] = React.useState<string>('');
+  const [isEmbeddable, setIsEmbeddable] = React.useState(true);
+
+  React.useEffect(() => {
+    let mounted = true;
+    
+    const loadPreview = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const result = await getPreviewUrl(item);
+        
+        if (mounted) {
+          if (result && result.url) {
+            setBlobUrl(result.url);
+            setMimeType(result.mimeType || '');
+            
+            // Check if file type is embeddable in iframe
+            const embeddableTypes = [
+              'text/', 'image/', 'application/pdf',
+              'video/', 'audio/', 'application/json'
+            ];
+            const isEmbeddableType = embeddableTypes.some(type => 
+              result.mimeType?.startsWith(type)
+            );
+            setIsEmbeddable(isEmbeddableType);
+          } else {
+            setError('Failed to load preview');
+          }
+          setLoading(false);
+        }
+      } catch (err) {
+        if (mounted) {
+          setError('Failed to load preview');
+          setLoading(false);
+        }
+      }
+    };
+
+    loadPreview();
+
+    return () => {
+      mounted = false;
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
+    };
+  }, [item, getPreviewUrl]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center w-full h-full bg-zinc-800/50 rounded-md">
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
+          <div className="text-white text-sm">Loading preview...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !blobUrl) {
+    return (
+      <div className="flex items-center justify-center w-full h-full bg-zinc-800/50 rounded-md">
+        <div className="flex flex-col items-center gap-3">
+          <Eye className="w-12 h-12 text-red-400" />
+          <div className="text-red-400 text-sm text-center">
+            <div>Failed to load preview</div>
+            <div className="text-xs text-gray-500 mt-1">File type may not be supported</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle different file types for better browser compatibility
+  if (!isEmbeddable) {
+    return (
+      <div className="flex items-center justify-center w-full h-full bg-zinc-800/50 rounded-md">
+        <div className="flex flex-col items-center gap-4">
+          <FileText className="w-16 h-16 text-blue-400" />
+          <div className="text-center">
+            <div className="text-white font-medium">{item.name}</div>
+            <div className="text-gray-400 text-sm mt-1">Preview not available for this file type</div>
+            <div className="text-xs text-gray-500 mt-1">MIME: {mimeType}</div>
+          </div>
+          <button
+            onClick={() => window.open(blobUrl, '_blank')}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm transition-colors"
+          >
+            Open in New Tab
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full h-full relative bg-white rounded-md overflow-hidden">
+      <iframe
+        src={blobUrl}
+        className="w-full h-full border-0 bg-white"
+        title={`Preview of ${item.name}`}
+        sandbox="allow-same-origin allow-scripts allow-forms allow-downloads"
+        loading="lazy"
+        style={{ minHeight: '400px' }}
+        onLoad={() => {
+          console.log('Iframe loaded successfully for:', item.name);
+        }}
+        onError={(e) => {
+          console.error('Iframe failed to load:', e);
+          setError('Iframe failed to load content');
+        }}
+      />
+      {/* Fallback overlay for iframe loading issues */}
+      <div className="absolute top-2 right-2 z-10">
+        <button
+          onClick={() => window.open(blobUrl, '_blank')}
+          className="p-1 bg-black/50 hover:bg-black/70 text-white rounded text-xs transition-colors"
+          title="Open in new tab"
+        >
+          <ExternalLink className="w-3 h-3" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function StarredItemList({
   items,
   onRemoveStar,
 }: StarredItemListProps) {
+  const { user } = useUserStore();
+  const [previewItem, setPreviewItem] = React.useState<StarredItem | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+
+  // Handle file actions (same as StarredItemGrid)
+  const handleAction = async (action: string, item: StarredItem) => {
+    const username = user?.name || user?.email || 'ashrith-sai';
+    
+    switch (action) {
+      case 'view':
+        handlePreview(item);
+        break;
+      case 'openNewTab':
+        handleOpenNewTab(item);
+        break;
+      case 'download':
+        handleDownload(item);
+        break;
+      case 'share':
+        handleShare(item);
+        break;
+      case 'unstar':
+        onRemoveStar(item.id);
+        break;
+      default:
+        console.log('Unknown action:', action);
+    }
+  };
+
+  const handlePreview = async (item: StarredItem) => {
+    try {
+      setPreviewItem(item);
+      setIsDialogOpen(true);
+      
+      console.log('File preview opened in dialog:', item.name);
+    } catch (error) {
+      console.error('Preview failed:', error);
+      toast.error(`Cannot preview "${item.name}"`);
+    }
+  };
+
+  // Create authenticated blob URL for preview with detailed response
+  const getPreviewUrl = async (item: StarredItem): Promise<{ url: string; mimeType: string } | null> => {
+    try {
+      const fileExtension = item.name.split('.').pop() || '';
+      const pathParam = fileExtension ? `${item.shaFileId}.${fileExtension}` : item.shaFileId || item.name;
+      
+      const response = await fetch(`${api.defaults.baseURL || 'http://localhost:8080'}/v1/file/path/view?path=${encodeURIComponent(pathParam)}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`,
+        },
+      });
+      
+      if (response.ok) {
+        const contentType = response.headers.get('Content-Type') || 'application/octet-stream';
+        const blob = await response.blob();
+        
+        // Ensure the blob has the correct MIME type for better browser compatibility
+        const typedBlob = new Blob([blob], { type: contentType });
+        
+        return {
+          url: URL.createObjectURL(typedBlob),
+          mimeType: contentType
+        };
+      } else {
+        console.error('Failed to fetch file for preview:', response.status, response.statusText);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error creating preview URL:', error);
+      return null;
+    }
+  };
+
+  const handleOpenNewTab = async (item: StarredItem) => {
+    try {
+      const fileExtension = item.name.split('.').pop() || '';
+      const pathParam = fileExtension ? `${item.shaFileId}.${fileExtension}` : item.shaFileId || item.name;
+      
+      // Show loading toast
+      const loadingToast = toast.loading(`Opening "${item.name}"...`);
+      
+      const response = await fetch(`${api.defaults.baseURL || 'http://localhost:8080'}/v1/file/path/view?path=${encodeURIComponent(pathParam)}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`,
+        },
+      });
+      
+      toast.dismiss(loadingToast);
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        
+        // Open in new tab
+        const newWindow = window.open(url, '_blank');
+        
+        if (!newWindow) {
+          toast.error('Failed to open new tab. Please check your popup blocker settings.');
+          URL.revokeObjectURL(url);
+        } else {
+          toast.success(`"${item.name}" opened in new tab`);
+          // Clean up the blob URL after a delay
+          setTimeout(() => URL.revokeObjectURL(url), 10000);
+        }
+      } else {
+        throw new Error(`Failed to fetch file: ${response.status}`);
+      }
+      
+      console.log('File opened in new tab:', item.name);
+    } catch (error) {
+      console.error('Open in new tab failed:', error);
+      toast.error(`Cannot open "${item.name}" in new tab`);
+    }
+  };
+
+  const handleDownload = async (item: StarredItem) => {
+    try {
+      const fileExtension = item.name.split('.').pop() || '';
+      const pathParam = fileExtension ? `${item.shaFileId}.${fileExtension}` : item.shaFileId || item.name;
+      const baseURL = api.defaults.baseURL || 'http://localhost:8080';
+      const downloadUrl = `${baseURL}/v1/file/path/download?path=${encodeURIComponent(pathParam)}`;
+      
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(downloadUrl, {
+        method: 'GET',
+        headers: { 'Authorization': token ? `Bearer ${token}` : '' },
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = item.name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        toast.success(`"${item.name}" downloaded successfully`);
+        console.log('File downloaded successfully:', item.name);
+      } else {
+        throw new Error(`Download failed with status: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Download failed:', error);
+      toast.error(`Failed to download "${item.name}"`);
+    }
+  };
+
+  const handleShare = async (item: StarredItem) => {
+    try {
+      const username = user?.name || user?.email || 'ashrith-sai';
+      if (!username) {
+        toast.error('User not authenticated');
+        return;
+      }
+
+      const loadingToast = toast.loading(`Generating share link for "${item.name}"...`);
+      const response = await api.post('/v1/file/public-share', {
+        filename: item.name,
+        username: username
+      });
+      toast.dismiss(loadingToast);
+
+      if (response.data.status === 'success' && response.data.data) {
+        const publicUrl = response.data.data.publicUrl;
+        
+        try {
+          await navigator.clipboard.writeText(publicUrl);
+          toast.success(`Share link for "${item.name}" copied to clipboard!`);
+        } catch (clipboardError) {
+          const textArea = document.createElement('textarea');
+          textArea.value = publicUrl;
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+          toast.success(`Share link for "${item.name}" copied to clipboard!`);
+        }
+        
+        console.log('Share link generated:', publicUrl);
+      } else {
+        throw new Error(response.data.message || 'Failed to generate share link');
+      }
+    } catch (error) {
+      console.error('Share failed:', error);
+      toast.error(`Failed to generate share link for "${item.name}"`);
+    }
+  };
+
   const getFileIcon = (item: StarredItem) => {
     if (item.type === 'folder') return Folder;
 
@@ -84,7 +428,10 @@ export default function StarredItemList({
         return (
           <ContextMenu key={item.id}>
             <ContextMenuTrigger>
-              <div className="group flex items-center justify-between p-3 sm:p-4 bg-zinc-800/30 hover:bg-zinc-800/50 border border-zinc-700 rounded-lg cursor-pointer transition-all hover:border-[#6e73fa]/50 mb-2">
+              <div 
+                className="group flex items-center justify-between p-3 sm:p-4 bg-zinc-800/30 hover:bg-zinc-800/50 border border-zinc-700 rounded-lg cursor-pointer transition-all hover:border-[#6e73fa]/50 mb-2 min-w-0 w-full"
+                onClick={() => handleAction('view', item)}
+              >
                 <div className="flex items-center space-x-3 sm:space-x-4 flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <ItemIcon
@@ -125,64 +472,135 @@ export default function StarredItemList({
                   </div>
                 </div>
                 <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 sm:p-2"
-                    onClick={e => {
-                      e.stopPropagation();
-                      onRemoveStar(item.id);
-                    }}
-                  >
-                    <StarOff className="w-4 h-4 text-yellow-400" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 sm:p-2"
-                  >
-                    <MoreHorizontal className="w-4 h-4" />
-                  </Button>
+                  {/* Dropdown menu - visible on hover */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 sm:p-2 hover:bg-zinc-700/50"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MoreVertical className="w-4 h-4 text-gray-400 hover:text-white" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="bg-zinc-800 border-zinc-700 w-48">
+                      <DropdownMenuItem
+                        className="text-white hover:bg-zinc-700 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAction('view', item);
+                        }}
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        View
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-white hover:bg-zinc-700 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAction('openNewTab', item);
+                        }}
+                      >
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        Open in New Tab
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-white hover:bg-zinc-700 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAction('download', item);
+                        }}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Download
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-white hover:bg-zinc-700 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAction('share', item);
+                        }}
+                      >
+                        <Share2 className="w-4 h-4 mr-2" />
+                        Share
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator className="bg-zinc-700" />
+                      <DropdownMenuItem
+                        className="text-yellow-400 hover:bg-zinc-700 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAction('unstar', item);
+                        }}
+                      >
+                        <StarOff className="w-4 h-4 mr-2" />
+                        Remove Star
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             </ContextMenuTrigger>
             <ContextMenuContent className="bg-zinc-800 border-zinc-700">
-              <ContextMenuItem className="text-white hover:bg-zinc-700">
+              <ContextMenuItem
+                className="text-white hover:bg-zinc-700 cursor-pointer"
+                onClick={() => handleAction('view', item)}
+              >
                 <Eye className="w-4 h-4 mr-2" />
-                Preview
+                View
               </ContextMenuItem>
-              <ContextMenuItem className="text-white hover:bg-zinc-700">
+              <ContextMenuItem
+                className="text-white hover:bg-zinc-700 cursor-pointer"
+                onClick={() => handleAction('openNewTab', item)}
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Open in New Tab
+              </ContextMenuItem>
+              <ContextMenuItem
+                className="text-white hover:bg-zinc-700 cursor-pointer"
+                onClick={() => handleAction('download', item)}
+              >
                 <Download className="w-4 h-4 mr-2" />
                 Download
               </ContextMenuItem>
-              <ContextMenuItem className="text-white hover:bg-zinc-700">
+              <ContextMenuItem
+                className="text-white hover:bg-zinc-700 cursor-pointer"
+                onClick={() => handleAction('share', item)}
+              >
                 <Share2 className="w-4 h-4 mr-2" />
                 Share
               </ContextMenuItem>
-              <ContextMenuItem className="text-white hover:bg-zinc-700">
-                <Copy className="w-4 h-4 mr-2" />
-                Copy Link
-              </ContextMenuItem>
               <ContextMenuSeparator className="bg-zinc-700" />
-              <ContextMenuItem className="text-white hover:bg-zinc-700">
-                <Settings className="w-4 h-4 mr-2" />
-                Properties
-              </ContextMenuItem>
               <ContextMenuItem
-                className="text-yellow-400 hover:bg-zinc-700"
-                onClick={() => onRemoveStar(item.id)}
+                className="text-yellow-400 hover:bg-zinc-700 cursor-pointer"
+                onClick={() => handleAction('unstar', item)}
               >
                 <StarOff className="w-4 h-4 mr-2" />
                 Remove Star
-              </ContextMenuItem>
-              <ContextMenuItem className="text-red-400 hover:bg-zinc-700">
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete
               </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>
         );
       })}
+      
+      {/* File Preview Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-5xl w-[95vw] h-[85vh] bg-zinc-900 border-zinc-700 p-0 gap-0">
+          <DialogHeader className="p-4 pb-2 border-b border-zinc-700">
+            <DialogTitle className="text-white text-left flex items-center gap-2">
+              <Eye className="w-5 h-5 text-blue-400" />
+              {previewItem?.name || 'File Preview'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 p-4 overflow-hidden">
+            <div className="w-full h-full rounded-md border border-zinc-700 overflow-hidden bg-white">
+              {previewItem && (
+                <PreviewFrame item={previewItem} getPreviewUrl={getPreviewUrl} />
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
