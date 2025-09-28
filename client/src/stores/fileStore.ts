@@ -4,7 +4,7 @@ import { FileStore, FileItem, UploadProgress } from '@/types/store';
 import { getAuthHeaders } from './userStore';
 import { toast } from 'sonner';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL ;
 
 export const useFileStore = create<FileStore>()(
   persist(
@@ -30,8 +30,8 @@ export const useFileStore = create<FileStore>()(
         
         try {
           const url = folderId 
-            ? `${API_BASE_URL}/api/files?folderId=${folderId}`
-            : `${API_BASE_URL}/api/files`;
+            ? `${API_BASE_URL}/files?folderId=${folderId}`
+            : `${API_BASE_URL}/files`;
             
           const response = await fetch(url, {
             headers: getAuthHeaders(),
@@ -56,10 +56,10 @@ export const useFileStore = create<FileStore>()(
         try {
           // Fetch both endpoints concurrently
           const [ownedResponse, ownedInfoResponse] = await Promise.all([
-            fetch(`${API_BASE_URL}/api/v1/file/owned?username=${username}`, {
+            fetch(`${API_BASE_URL}/v1/file/owned?username=${username}`, {
               headers: getAuthHeaders(),
             }),
-            fetch(`${API_BASE_URL}/api/v1/file/owned-info?username=${username}`, {
+            fetch(`${API_BASE_URL}/v1/file/owned-info?username=${username}`, {
               headers: getAuthHeaders(),
             })
           ]);
@@ -143,7 +143,7 @@ export const useFileStore = create<FileStore>()(
             formData.append('folderId', folderId);
           }
 
-          const response = await fetch(`${API_BASE_URL}/api/files/upload`, {
+          const response = await fetch(`${API_BASE_URL}/api/v1/files/upload-meta`, {
             method: 'POST',
             headers: getAuthHeaders(),
             body: formData,
@@ -391,7 +391,7 @@ export const useFileStore = create<FileStore>()(
         set({ isLoading: true });
         
         try {
-          const response = await fetch(`${API_BASE_URL}/api/files/starred`, {
+          const response = await fetch(`${API_BASE_URL}/v1/files/starred`, {
             headers: getAuthHeaders(),
           });
 
@@ -410,7 +410,7 @@ export const useFileStore = create<FileStore>()(
       // Shared files
       shareFile: async (fileId: string, emails: string[], permissions: 'view' | 'edit') => {
         try {
-          const response = await fetch(`${API_BASE_URL}/api/files/${fileId}/share`, {
+          const response = await fetch(`${API_BASE_URL}/v1/files/${fileId}/share`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -436,7 +436,7 @@ export const useFileStore = create<FileStore>()(
 
       unshareFile: async (fileId: string, userId: string) => {
         try {
-          const response = await fetch(`${API_BASE_URL}/api/files/${fileId}/unshare`, {
+          const response = await fetch(`${API_BASE_URL}/v1/files/${fileId}/unshare`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -464,7 +464,7 @@ export const useFileStore = create<FileStore>()(
         set({ isLoading: true });
         
         try {
-          const response = await fetch(`${API_BASE_URL}/api/files/shared`, {
+          const response = await fetch(`${API_BASE_URL}/v1/files/shared`, {
             headers: getAuthHeaders(),
           });
 
@@ -486,8 +486,8 @@ export const useFileStore = create<FileStore>()(
           // Get the current file to know its name
           const currentFile = get().files.find(file => file.id === fileId);
           const fileName = currentFile?.name || 'File';
-          
-          const response = await fetch(`${API_BASE_URL}/api/files/${fileId}/trash`, {
+
+          const response = await fetch(`${API_BASE_URL}/v1/files/${fileId}/trash`, {
             method: 'POST',
             headers: getAuthHeaders(),
           });

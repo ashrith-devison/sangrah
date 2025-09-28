@@ -1,5 +1,3 @@
-
-
 # 🚀 MyDrive File Vault System
 
 
@@ -32,6 +30,22 @@ flowchart TD
   <b>📧 Email: ashrithsai.devison@gmail.com</b>
   <br>
   <a href="./client/">Frontend Docs</a> • <a href="./server/">Backend Docs</a> • <a href="#-quick-start">Quick Start</a> • <a href="#-contributing">Contributing</a>
+</div>
+
+---
+
+<div align="center">
+
+# Login Credentials
+
+**Admin Login:**  
+Email: `admin@gmail.com`  
+Password: `Admin@123`
+
+**User Login:**  
+Email: `user@gmail.com`  
+Password: `User@12345`
+
 </div>
 
 ---
