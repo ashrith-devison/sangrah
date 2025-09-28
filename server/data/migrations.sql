@@ -1,3 +1,16 @@
+
+-- Table for user file info with tags, starred, permission, etc.
+CREATE TABLE IF NOT EXISTS user_file_info (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(255) NOT NULL,
+    filename VARCHAR(255) NOT NULL,
+    tags VARCHAR(16) CHECK (tags IN ('high', 'medium', 'low')) DEFAULT 'medium',
+    upload_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    starred BOOLEAN DEFAULT FALSE,
+    permission VARCHAR(16) CHECK (permission IN ('owner', 'read')) DEFAULT 'owner',
+    CONSTRAINT user_file_info_unique UNIQUE (username, filename)
+);
+
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(255) PRIMARY KEY,

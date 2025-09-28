@@ -18,6 +18,8 @@ import {
   ChevronUp,
   ChevronDown,
   Edit3,
+  ExternalLink,
+  Star,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -172,16 +174,18 @@ export default function DriveFileList({
       </div>
 
       {/* File Rows */}
-      <div className="divide-y divide-zinc-800">
+      <div className="divide-y divide-zinc-800 overflow-hidden">
         {files.map((file) => {
           const fileType = getFileType(file.filename);
           const FileIcon = getFileIcon(fileType);
           const iconColor = getFileColor(fileType);
+          // Create a unique key combining fileId and filename to avoid duplicates
+          const uniqueKey = `${file.fileId || file.id}-${file.filename}`;
 
           return (
             <div 
-              key={file.id} 
-              className="grid grid-cols-12 gap-2 sm:gap-4 p-3 sm:p-4 hover:bg-zinc-800/30 transition-colors cursor-pointer group"
+              key={uniqueKey} 
+              className="grid grid-cols-12 gap-2 sm:gap-4 p-3 sm:p-4 hover:bg-zinc-800/30 transition-colors cursor-pointer group min-w-0 overflow-hidden"
               onClick={() => handleAction('view', file)}
             >
               {/* File Name */}
@@ -191,7 +195,12 @@ export default function DriveFileList({
                     <FileIcon className="w-3 h-3 sm:w-4 sm:h-4" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-white font-medium truncate text-sm sm:text-base">{file.filename}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-white font-medium truncate text-sm sm:text-base">{file.filename}</div>
+                      {file.starred && (
+                        <Star className="w-4 h-4 fill-yellow-400 text-yellow-400 flex-shrink-0" />
+                      )}
+                    </div>
                     <div className="text-xs text-gray-500 truncate hidden sm:block">
                       {file.path && file.path !== '/home' && `📁 ${file.path}`}
                     </div>
@@ -260,6 +269,13 @@ export default function DriveFileList({
                       View
                     </DropdownMenuItem>
                     <DropdownMenuItem
+                      onClick={() => handleAction('openNewTab', file)}
+                      className="text-white hover:bg-zinc-700"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Open in New Tab
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
                       onClick={() => handleAction('download', file)}
                       className="text-white hover:bg-zinc-700"
                     >
@@ -279,6 +295,13 @@ export default function DriveFileList({
                     >
                       <Edit3 className="w-4 h-4 mr-2" />
                       Rename
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleAction('star', file)}
+                      className="text-white hover:bg-zinc-700"
+                    >
+                      <Star className={`w-4 h-4 mr-2 ${file.starred ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+                      {file.starred ? 'Unstar' : 'Star'}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator className="bg-zinc-700" />
                     <DropdownMenuItem

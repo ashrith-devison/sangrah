@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { DriveFileItem } from '@/types/drive';
 import DriveStats from './DriveStats';
 import DriveFileGrid from './DriveFileGrid';
@@ -9,11 +9,13 @@ import DriveBreadcrumb from './DriveBreadcrumb';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileX, AlertCircle, Grid3X3, List, Search, HardDrive, FolderPlus, Upload, X, Edit3, Music, Download, FileIcon, Eye, Link, Copy, Check } from 'lucide-react';
+import { FileX, AlertCircle, Grid3X3, List, Search, HardDrive, FolderPlus, Upload, X, Edit3, Music, Download, FileIcon, Eye, Link, Copy, Check, ExternalLink } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
 import api from '@/lib/api';
 import { useAuth } from '@/stores/hooks';
+import { useFileStore } from '@/stores';
+import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 
 type ViewMode = 'grid' | 'list';
@@ -26,12 +28,58 @@ interface DriveViewProps {
 
 export default function DriveView({ initialFiles = [], loading = false, error = null }: DriveViewProps) {
   const { user } = useAuth();
-  const [files, setFiles] = useState<DriveFileItem[]>(initialFiles);
-  const [filteredFiles, setFilteredFiles] = useState<DriveFileItem[]>(initialFiles);
+  
+  // Use file store for data and operations
+  const { 
+    files: storeFiles, 
+    isLoading: storeLoading, 
+    fetchDriveFiles,
+    toggleStar 
+  } = useFileStore();
+
+
+  
+  // Transform store files to DriveFileItem format
+  const files: DriveFileItem[] = storeFiles.map(file => ({
+    id: file.id,
+    filename: file.name,
+    fileId: file.fileId || file.id,
+    path: file.path || '/',
+    modified: file.dateModified || file.updatedAt || new Date().toISOString(),
+    username: file.username || user?.name || '',
+    permission: file.permission as any || 'owner',
+    starred: file.isStarred,
+    size: typeof file.size === 'string' ? file.size : `${(file.size / 1024 / 1024).toFixed(2)} MB`,
+    type: file.type === 'folder' ? undefined : 
+          file.mimeType?.includes('image') ? 'image' :
+          file.mimeType?.includes('video') ? 'video' :
+          file.mimeType?.includes('audio') ? 'audio' :
+          file.mimeType?.includes('pdf') ? 'document' : 'other'
+  }));
+
+  // Create stable fetchFiles function
+  const fetchFiles = useCallback(async () => {
+    if (!user?.name) return;
+    try {
+      await fetchDriveFiles(user.name);
+    } catch (err) {
+      console.error('Error fetching files:', err);
+    }
+  }, [user?.name, fetchDriveFiles]);
+
+  // Initial fetch on mount - use a ref to prevent infinite loops
+  const hasFetched = useRef(false);
+  
+  useEffect(() => {
+    if (user?.name && !hasFetched.current) {
+      hasFetched.current = true;
+      fetchDriveFiles(user.name).catch(console.error);
+    }
+  }, [user?.name]); // Remove fetchDriveFiles from dependencies
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPath, setCurrentPath] = useState('/');
-  const [isLoading, setIsLoading] = useState(loading);
+  const isLoading = storeLoading;
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadTargetPath, setUploadTargetPath] = useState('');
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
@@ -79,55 +127,28 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
     return filename.split('.').pop()?.toLowerCase() || '';
   }
 
-  // Filter files based on search and current directory
-  useEffect(() => {
-    let result = [...files];
 
-    // Filter by current path/directory - show files that are exactly in this directory
-    if (currentPath === '/') {
-      // Root level: show files that are in root OR show top-level directories
-      result = result.filter(file => {
-        // For root, we want to see files in subdirectories to create folder structure
-        return file.path.startsWith('/');
-      });
-    } else {
-      // Specific directory: show only files exactly in this path
-      result = result.filter(file => file.path === currentPath);
-    }
-
-    // Apply search filter
-    if (searchQuery) {
-      result = result.filter(file =>
-        file.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        file.path.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    setFilteredFiles(result);
-  }, [files, searchQuery, currentPath]);
 
   // Get unique directories for navigation
   const getDirectories = () => {
-    const allPaths = files.map(file => file.path);
+    const allPaths = files.map(file => file.path || '');
     const uniquePaths = [...new Set(allPaths)];
     
     // Get all possible directory levels from current path
     const directories: Array<{name: string, path: string, isSubdirectory: boolean}> = [];
     
     uniquePaths.forEach(fullPath => {
+      if (!fullPath) return;
       // Skip if it's the current path
       if (fullPath === currentPath) return;
-      
       // Check if this path is a subdirectory of current path
-      if (fullPath.startsWith(currentPath) && fullPath !== currentPath) {
+      if (typeof fullPath === 'string' && fullPath.startsWith(currentPath) && fullPath !== currentPath) {
         // Get the immediate subdirectory name
         const relativePath = fullPath.substring(currentPath.length);
         const pathParts = relativePath.split('/').filter(part => part.length > 0);
-        
         if (pathParts.length > 0) {
           const immediateSubdir = pathParts[0];
           const subdirPath = currentPath === '/' ? `/${immediateSubdir}` : `${currentPath}/${immediateSubdir}`;
-          
           // Only add if not already in directories
           if (!directories.find(dir => dir.path === subdirPath)) {
             directories.push({
@@ -155,63 +176,8 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
     return directories.filter(dir => dir.isSubdirectory);
   };
 
-  // Load files from API
-  useEffect(() => {
-    const loadFiles = async () => {
-      if (initialFiles.length > 0) return;
-      if (!user?.name) return; // Wait for user to be loaded
-      
-      setIsLoading(true);
-      try {
-        const response = await api.get(`/v1/file/owned?username=${user.name}`);
-        
-        console.log('API Response:', response.data); // Debug log
-        
-        // Handle different possible response structures
-        let filesData = [];
-        if (response.data && response.data.status === 'success' && Array.isArray(response.data.data)) {
-          filesData = response.data.data;
-        } else if (Array.isArray(response.data)) {
-          filesData = response.data;
-        } else if (response.data && Array.isArray(response.data.files)) {
-          filesData = response.data.files;
-        } else {
-          console.warn('Unexpected API response structure:', response.data);
-          filesData = [];
-        }
-        
-        // Transform API response to match our DriveFileItem interface
-        const apiFiles: DriveFileItem[] = filesData.map((file: any) => ({
-          id: file.id || file.fileId || Math.random().toString(),
-          filename: file.filename || file.name || 'Unknown File',
-          path: file.path || '/home',
-          modified: file.modified || file.updatedAt || new Date().toISOString(),
-          fileId: file.fileId || file.id || '',
-          username: file.username || user.name || '',
-          permission: file.permission || 'owner',
-          starred: file.starred || false
-        }));
-        
-        setFiles(apiFiles);
-      } catch (err: any) {
-        console.error('Error loading files:', err);
-        console.error('Error details:', {
-          message: err.message,
-          response: err.response?.data,
-          status: err.response?.status
-        });
-        
-        // Set empty array on error to prevent UI issues
-        setFiles([]);
-        
-        // You can add error handling here, e.g., show a toast notification
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadFiles();
-  }, [initialFiles.length, user?.name]);
+  // Note: Files are loaded by the fetchFiles function which calls /v1/file/owned-info
+  // This provides the starred property that /v1/file/owned does not include
 
   // Upload functionality
   const handleFolderClick = (folderPath: string) => {
@@ -266,25 +232,8 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
         });
       }
 
-      // Refresh files after upload
-      const response = await api.get(`/v1/file/owned?username=${user.name}`);
-      let filesData = [];
-      if (response.data && response.data.status === 'success' && Array.isArray(response.data.data)) {
-        filesData = response.data.data;
-      }
-      
-      const apiFiles: DriveFileItem[] = filesData.map((file: any) => ({
-        id: file.id || file.fileId || Math.random().toString(),
-        filename: file.filename || file.name || 'Unknown File',
-        path: file.path || '/home',
-        modified: file.modified || file.updatedAt || new Date().toISOString(),
-        fileId: file.fileId || file.id || '',
-        username: file.username || user.name || '',
-        permission: file.permission || 'owner',
-        starred: file.starred || false
-      }));
-      
-      setFiles(apiFiles);
+      // Refresh files after upload using the function that preserves starred data
+      await fetchFiles();
       setUploadModalOpen(false);
       setUploadFiles([]);
       setIsCreatingFolder(false);
@@ -315,17 +264,17 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
       });
 
       if (response.data.status === 'success') {
-        // Update the file in the local state
-        setFiles(prev => prev.map(f => 
-          f.id === fileToRename.id 
-            ? { ...f, filename: newFileName.trim() }
-            : f
-        ));
+        // Refresh files from the store
+        await fetchFiles();
 
         setRenameModalOpen(false);
         setFileToRename(null);
         setNewFileName('');
         
+        toast.success(`File renamed to "${newFileName.trim()}"`, {
+          icon: '✏️',
+          duration: 3000,
+        });
         console.log('File renamed successfully:', response.data);
       }
     } catch (error) {
@@ -471,33 +420,130 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
       // Get auth token for the request
       const token = localStorage.getItem('auth_token');
       
-      // For PDFs and images, we can set the URL directly for iframe/img display
-      // For other file types, we might need different handling
-      const response = await fetch(viewUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
-      });
+      // Open file in new tab with authorization headers
+      // Create a temporary form to POST with auth headers
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = viewUrl;
+      form.target = '_blank';
       
-      if (response.ok) {
-        // Create a blob URL for the preview
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        
-        setFileToPreview(file);
-        setPreviewUrl(blobUrl);
-        setPreviewModalOpen(true);
-        
-        console.log('File preview loaded:', file.filename);
-      } else {
-        // If preview fails, show error message and offer download option
-        console.error(`Preview failed with status: ${response.status}`);
-        alert(`Cannot preview this file. File not found or not accessible. You can try downloading it instead.`);
+      // Add authorization header as a hidden field (if backend supports it)
+      if (token) {
+        const authInput = document.createElement('input');
+        authInput.type = 'hidden';
+        authInput.name = 'authorization';
+        authInput.value = `Bearer ${token}`;
+        form.appendChild(authInput);
       }
+      
+      document.body.appendChild(form);
+      form.submit();
+      document.body.removeChild(form);
+      
+      console.log('File opened in new tab:', file.filename);
+      
     } catch (error) {
       console.error('Preview failed:', error);
-      alert(`Cannot preview this file: ${error}. You can try downloading it instead.`);
+      // Fallback: try to fetch and create blob URL for inline preview
+      try {
+        const token = localStorage.getItem('auth_token');
+        const fileExtension = file.filename.split('.').pop() || '';
+        const pathParam = fileExtension ? `${file.fileId}.${fileExtension}` : file.fileId;
+        const viewUrl = `${api.defaults.baseURL}/v1/file/path/view?path=${encodeURIComponent(pathParam)}`;
+        
+        const response = await fetch(viewUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+          },
+        });
+        
+        if (response.ok) {
+          // Create a blob URL for the preview
+          const blob = await response.blob();
+          const blobUrl = window.URL.createObjectURL(blob);
+          
+          setFileToPreview(file);
+          setPreviewUrl(blobUrl);
+          setPreviewModalOpen(true);
+          
+          console.log('File preview loaded:', file.filename);
+        } else {
+          toast.error(`Cannot open file: ${response.statusText}`);
+        }
+      } catch (fallbackError) {
+        console.error('Fallback preview failed:', fallbackError);
+        toast.error(`Cannot open this file: ${fallbackError}`);
+      }
+    }
+  };
+
+  const handleOpenInNewTab = (file: DriveFileItem) => {
+    try {
+      // Extract file extension from filename
+      const fileExtension = file.filename.split('.').pop() || '';
+      
+      // Concatenate fileId with extension as required by the API
+      const pathParam = fileExtension ? `${file.fileId}.${fileExtension}` : file.fileId;
+      
+      // Create the view URL
+      const viewUrl = `${api.defaults.baseURL}/v1/file/path/view?path=${encodeURIComponent(pathParam)}`;
+      
+      // Get auth token
+      const token = localStorage.getItem('auth_token');
+      
+      // For opening in new tab with auth headers, we need to use a different approach
+      // Create a new window and write the content with auth headers
+      const newWindow = window.open('about:blank', '_blank');
+      
+      if (newWindow) {
+        // Set up the new window with loading message
+        newWindow.document.write(`
+          <html>
+            <head>
+              <title>${file.filename}</title>
+              <style>
+                body { font-family: Arial, sans-serif; margin: 40px; text-align: center; }
+                .loading { color: #666; }
+              </style>
+            </head>
+            <body>
+              <div class="loading">Loading ${file.filename}...</div>
+              <script>
+                // Fetch the file with auth headers
+                fetch('${viewUrl}', {
+                  method: 'GET',
+                  headers: {
+                    'Authorization': '${token ? `Bearer ${token}` : ''}'
+                  }
+                })
+                .then(response => {
+                  if (!response.ok) {
+                    throw new Error('Failed to load file');
+                  }
+                  return response.blob();
+                })
+                .then(blob => {
+                  const url = URL.createObjectURL(blob);
+                  window.location.href = url;
+                })
+                .catch(error => {
+                  document.body.innerHTML = '<div style="color: red;">Error loading file: ' + error.message + '</div>';
+                });
+              </script>
+            </body>
+          </html>
+        `);
+        newWindow.document.close();
+      } else {
+        toast.error('Failed to open new tab. Please check your popup blocker settings.');
+      }
+      
+      console.log('File opened in new tab:', file.filename);
+      
+    } catch (error) {
+      console.error('Open in new tab failed:', error);
+      toast.error(`Cannot open file in new tab: ${error}`);
     }
   };
 
@@ -523,8 +569,13 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
       });
 
       if (response.data.status === 'success') {
-        // Remove the file from the local state
-        setFiles(prev => prev.filter(f => f.id !== file.id));
+        // Refresh files from the store
+        await fetchFiles();
+        
+        toast.success(`"${file.filename}" deleted successfully`, {
+          icon: '🗑️',
+          duration: 3000,
+        });
         console.log('File deleted successfully:', file.filename);
       } else {
         throw new Error(response.data.message || 'Delete failed');
@@ -615,10 +666,61 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
     }
   };
 
+  const handleToggleStar = async (file: DriveFileItem) => {
+    if (!user?.name) {
+      toast.error('Please log in to star files', {
+        icon: '❌',
+        duration: 4000,
+      });
+      return;
+    }
+
+    try {
+      // Use the store's toggleStar function, but call the correct API endpoint
+      const currentStarred = file.starred || false;
+      const newStarred = !currentStarred;
+      
+      const response = await api.post('/v1/file/update-info', {
+        username: user.name,
+        filename: file.filename,
+        starred: newStarred
+      });
+      
+      if (response.data.status === 'success') {
+        // Refresh files from both endpoints to ensure sync
+        await fetchFiles();
+        
+        // Show success toast
+        if (newStarred) {
+          toast.success(`"${file.filename}" added to starred files`, {
+            icon: '⭐',
+            duration: 3000,
+          });
+        } else {
+          toast.success(`"${file.filename}" removed from starred files`, {
+            icon: '✨',
+            duration: 3000,
+          });
+        }
+      } else {
+        throw new Error(response.data.message || 'Failed to update star status');
+      }
+    } catch (error: any) {
+      console.error('Toggle star failed:', error);
+      toast.error(`Failed to update "${file.filename}" star status`, {
+        icon: '❌',
+        duration: 4000,
+      });
+    }
+  };
+
   const handleAction = async (action: string, file: DriveFileItem) => {
     switch (action) {
       case 'view':
         handlePreview(file);
+        break;
+      case 'openNewTab':
+        handleOpenInNewTab(file);
         break;
       case 'download':
         handleDownload(file);
@@ -632,9 +734,7 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
         setRenameModalOpen(true);
         break;
       case 'star':
-        setFiles(prev => prev.map(f => 
-          f.id === file.id ? { ...f, starred: !f.starred } : f
-        ));
+        await handleToggleStar(file);
         break;
       case 'delete':
         if (confirm(`Are you sure you want to delete "${file.filename}"?`)) {
@@ -685,7 +785,7 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden w-full max-w-full">
       {/* Header Section - Fixed */}
       <div className="flex-shrink-0 space-y-4 sm:space-y-6">
         {/* Simple Header */}
@@ -696,7 +796,15 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
               <span className="truncate">My Drive</span>
             </h1>
             <p className="text-gray-400 text-sm sm:text-base">
-              {files.length} total files • {filteredFiles.length} in current directory
+              {files.length} total files • {(() => {
+                const currentDirFiles = files.filter(file => file.path === currentPath);
+                return searchQuery 
+                  ? currentDirFiles.filter(file => 
+                      file.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      file.path.toLowerCase().includes(searchQuery.toLowerCase())
+                    ).length
+                  : currentDirFiles.length;
+              })()} in current directory
             </p>
           </div>
           <div className="flex gap-2 sm:gap-3 items-center flex-wrap">
@@ -760,14 +868,14 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
       </div>
 
       {/* Content Area - Scrollable */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden mt-4 sm:mt-6 min-h-0">
-        <div className="space-y-4 sm:space-y-6 pb-4 sm:pb-6">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden mt-4 sm:mt-6 min-h-0 pr-2">
+        <div className="space-y-4 sm:space-y-6 pb-4 sm:pb-6 max-w-full">
 
       {/* Directory Folders */}
       {!isLoading && getSubDirectories().length > 0 && (
         <div className="mb-6">
           <h3 className="text-sm font-medium text-gray-400 mb-3">Folders</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3 w-full max-w-full overflow-hidden">
             {getSubDirectories().map((directory) => (
               <Card 
                 key={directory.path}

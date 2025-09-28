@@ -16,6 +16,8 @@ import {
   File,
   MoreVertical,
   Edit3,
+  ExternalLink,
+  Star,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -123,20 +125,24 @@ export default function DriveFileGrid({ files, onFileAction }: DriveFileGridProp
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4 w-full max-w-full overflow-hidden">
       {files.map((file) => {
         const fileType = getFileType(file.filename);
         const FileIcon = getFileIcon(fileType);
         const iconColor = getFileColor(fileType);
+        // Create a unique key combining fileId and filename to avoid duplicates
+        const uniqueKey = `${file.fileId || file.id}-${file.filename}`;
 
         return (
-          <ContextMenu key={file.id}>
+          <ContextMenu key={uniqueKey}>
             <ContextMenuTrigger>
-              <div className="group relative bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 hover:bg-zinc-800/50 hover:border-zinc-700 transition-all duration-200 cursor-pointer">
+              <div className="group relative bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 hover:bg-zinc-800/50 hover:border-zinc-700 transition-all duration-200 cursor-pointer min-w-0 w-full">
                 {/* File Icon */}
                 <div className="flex items-center justify-between mb-3">
-                  <div className={`p-2 rounded-lg bg-zinc-800/50 ${iconColor}`}>
-                    <FileIcon className="w-6 h-6" />
+                  <div className="flex items-center gap-2">
+                    <div className={`p-2 rounded-lg bg-zinc-800/50 ${iconColor}`}>
+                      <FileIcon className="w-6 h-6" />
+                    </div>
                   </div>
                   
                   {/* More Actions */}
@@ -159,6 +165,13 @@ export default function DriveFileGrid({ files, onFileAction }: DriveFileGridProp
                         View
                       </DropdownMenuItem>
                       <DropdownMenuItem
+                        onClick={() => handleAction('openNewTab', file)}
+                        className="text-white hover:bg-zinc-700"
+                      >
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        Open in New Tab
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
                         onClick={() => handleAction('download', file)}
                         className="text-white hover:bg-zinc-700"
                       >
@@ -179,6 +192,13 @@ export default function DriveFileGrid({ files, onFileAction }: DriveFileGridProp
                         <Edit3 className="w-4 h-4 mr-2" />
                         Rename
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleAction('star', file)}
+                        className="text-white hover:bg-zinc-700"
+                      >
+                        <Star className={`w-4 h-4 mr-2 ${file.starred ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+                        {file.starred ? 'Unstar' : 'Star'}
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator className="bg-zinc-700" />
                       <DropdownMenuItem
                         onClick={() => handleAction('delete', file)}
@@ -193,9 +213,14 @@ export default function DriveFileGrid({ files, onFileAction }: DriveFileGridProp
 
                 {/* File Info */}
                 <div className="space-y-2">
-                  <h3 className="text-white font-medium text-sm line-clamp-2 leading-tight">
-                    {file.filename}
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-white font-medium text-sm line-clamp-2 leading-tight flex-1">
+                      {file.filename}
+                    </h3>
+                    {file.starred && (
+                      <Star className="w-4 h-4 fill-yellow-400 text-yellow-400 flex-shrink-0" />
+                    )}
+                  </div>
                   
                   <div className="flex items-center justify-between text-xs text-gray-400">
                     <span>{getFileExtension(file.filename)}</span>
@@ -247,6 +272,13 @@ export default function DriveFileGrid({ files, onFileAction }: DriveFileGridProp
                 View
               </ContextMenuItem>
               <ContextMenuItem
+                onClick={() => handleAction('openNewTab', file)}
+                className="text-white hover:bg-zinc-700"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Open in New Tab
+              </ContextMenuItem>
+              <ContextMenuItem
                 onClick={() => handleAction('download', file)}
                 className="text-white hover:bg-zinc-700"
               >
@@ -259,6 +291,13 @@ export default function DriveFileGrid({ files, onFileAction }: DriveFileGridProp
               >
                 <Share2 className="w-4 h-4 mr-2" />
                 Share
+              </ContextMenuItem>
+              <ContextMenuItem
+                onClick={() => handleAction('star', file)}
+                className="text-white hover:bg-zinc-700"
+              >
+                <Star className={`w-4 h-4 mr-2 ${file.starred ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+                {file.starred ? 'Unstar' : 'Star'}
               </ContextMenuItem>
               <ContextMenuSeparator className="bg-zinc-700" />
               <ContextMenuItem

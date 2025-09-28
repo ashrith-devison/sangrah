@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { FileStore, FileItem, UploadProgress } from '@/types/store';
 import { getAuthHeaders } from './userStore';
+import { toast } from 'sonner';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
@@ -48,6 +49,80 @@ export const useFileStore = create<FileStore>()(
         }
       },
 
+      // Fetch files from both /owned and /owned-info endpoints and merge data
+      fetchDriveFiles: async (username: string) => {
+        set({ isLoading: true });
+        
+        try {
+          // Fetch both endpoints concurrently
+          const [ownedResponse, ownedInfoResponse] = await Promise.all([
+            fetch(`${API_BASE_URL}/api/v1/file/owned?username=${username}`, {
+              headers: getAuthHeaders(),
+            }),
+            fetch(`${API_BASE_URL}/api/v1/file/owned-info?username=${username}`, {
+              headers: getAuthHeaders(),
+            })
+          ]);
+
+          if (!ownedResponse.ok || !ownedInfoResponse.ok) {
+            throw new Error('Failed to fetch drive files');
+          }
+
+          const ownedData = await ownedResponse.json();
+          const ownedInfoData = await ownedInfoResponse.json();
+
+          // Create a map for quick lookup of starred status and additional info
+          const fileInfoMap = new Map();
+          if (ownedInfoData.status === 'success' && ownedInfoData.data) {
+            ownedInfoData.data.forEach((fileInfo: any) => {
+              fileInfoMap.set(fileInfo.filename, {
+                starred: fileInfo.starred || false,
+                tags: fileInfo.tags || '',
+                upload_time: fileInfo.upload_time,
+                id: fileInfo.id
+              });
+            });
+          }
+
+          // Merge the data from both endpoints
+          let mergedFiles: FileItem[] = [];
+          if (ownedData.status === 'success' && ownedData.data) {
+            mergedFiles = ownedData.data.map((file: any) => {
+              const fileInfo = fileInfoMap.get(file.filename) || {};
+              return {
+                id: fileInfo.id?.toString() || file.fileId || `${file.fileId}-${file.filename}`,
+                name: file.filename,
+                size: file.size_mb ? file.size_mb * 1024 * 1024 : 0, // Convert MB to bytes
+                type: file.filename ? file.filename.split('.').pop()?.toLowerCase() || 'file' : 'file',
+                dateModified: fileInfo.upload_time || new Date().toISOString(),
+                isFolder: false,
+                isStarred: fileInfo.starred || false,
+                path: file.path || '/',
+                fileId: file.fileId,
+                username: file.username || username,
+                permission: file.permission || 'owner',
+                tags: fileInfo.tags || ''
+              };
+            });
+          }
+
+          set({ files: mergedFiles, isLoading: false });
+          
+          toast.success(`Loaded ${mergedFiles.length} files from your drive`, {
+            icon: '📁',
+            duration: 2000,
+          });
+
+        } catch (error) {
+          set({ isLoading: false });
+          toast.error('Failed to load drive files', {
+            icon: '❌',
+            duration: 4000,
+          });
+          throw error;
+        }
+      },
+
       uploadFile: async (file: File, folderId?: string) => {
         const fileId = Math.random().toString(36).substr(2, 9);
         
@@ -80,6 +155,12 @@ export const useFileStore = create<FileStore>()(
 
           const uploadedFile = await response.json();
           
+          // Show success toast
+          toast.success(`"${file.name}" uploaded successfully`, {
+            icon: '📁',
+            duration: 3000,
+          });
+          
           // Update progress to completed
           set((state) => ({
             uploads: state.uploads.map((upload) =>
@@ -97,6 +178,11 @@ export const useFileStore = create<FileStore>()(
             }));
           }, 3000);
         } catch (error) {
+          toast.error(`Failed to upload "${file.name}"`, {
+            icon: '❌',
+            duration: 4000,
+          });
+          
           set((state) => ({
             uploads: state.uploads.map((upload) =>
               upload.fileId === fileId
@@ -124,10 +210,20 @@ export const useFileStore = create<FileStore>()(
           }
 
           const folder = await response.json();
+          
+          toast.success(`Folder "${name}" created successfully`, {
+            icon: '📁',
+            duration: 3000,
+          });
+          
           set((state) => ({
             files: [...state.files, folder],
           }));
         } catch (error) {
+          toast.error(`Failed to create folder "${name}"`, {
+            icon: '❌',
+            duration: 4000,
+          });
           throw error;
         }
       },
@@ -226,27 +322,67 @@ export const useFileStore = create<FileStore>()(
       },
 
       // Starred files
-      toggleStar: async (fileId: string) => {
+      toggleStar: async (filename: string, username?: string) => {
         try {
-          const response = await fetch(`${API_BASE_URL}/api/files/${fileId}/star`, {
+          // Get the current file to know its current star status
+          const currentFile = get().files.find(file => file.name === filename);
+          const currentStarred = currentFile?.isStarred || false;
+          const newStarred = !currentStarred;
+          
+          // Get username from auth context if not provided
+          const userToUse = username || 'current-user'; // This should come from auth context
+          
+          const response = await fetch(`${API_BASE_URL}/api/v1/file/update-info`, {
             method: 'POST',
-            headers: getAuthHeaders(),
+            headers: {
+              'Content-Type': 'application/json',
+              ...getAuthHeaders(),
+            },
+            body: JSON.stringify({
+              username: userToUse,
+              filename: filename,
+              starred: newStarred
+            }),
           });
 
           if (!response.ok) {
             throw new Error('Failed to toggle star');
           }
 
-          const updatedFile = await response.json();
-          set((state) => ({
-            files: state.files.map((file) =>
-              file.id === fileId ? updatedFile : file
-            ),
-            starredFiles: updatedFile.isStarred
-              ? [...state.starredFiles, updatedFile]
-              : state.starredFiles.filter((file) => file.id !== fileId),
-          }));
+          const result = await response.json();
+          
+          if (result.status === 'success') {
+            // Update local state
+            set((state) => ({
+              files: state.files.map((file) =>
+                file.name === filename ? { ...file, isStarred: newStarred } : file
+              ),
+              starredFiles: newStarred
+                ? [...state.starredFiles.filter(f => f.name !== filename), { ...currentFile!, isStarred: newStarred }]
+                : state.starredFiles.filter((file) => file.name !== filename),
+            }));
+
+            // Show success toast based on the action
+            if (newStarred) {
+              toast.success(`"${filename}" added to starred files`, {
+                icon: '⭐',
+                duration: 3000,
+              });
+            } else {
+              toast.success(`"${filename}" removed from starred files`, {
+                icon: '✨',
+                duration: 3000,
+              });
+            }
+          } else {
+            throw new Error(result.message || 'Failed to update star status');
+          }
         } catch (error) {
+          // Show error toast
+          toast.error(`Failed to update "${filename}" star status`, {
+            icon: '❌',
+            duration: 4000,
+          });
           throw error;
         }
       },
@@ -347,6 +483,10 @@ export const useFileStore = create<FileStore>()(
       // Trash operations
       moveToTrash: async (fileId: string) => {
         try {
+          // Get the current file to know its name
+          const currentFile = get().files.find(file => file.id === fileId);
+          const fileName = currentFile?.name || 'File';
+          
           const response = await fetch(`${API_BASE_URL}/api/files/${fileId}/trash`, {
             method: 'POST',
             headers: getAuthHeaders(),
@@ -356,11 +496,22 @@ export const useFileStore = create<FileStore>()(
             throw new Error('Failed to move to trash');
           }
 
+          toast.success(`"${fileName}" moved to trash`, {
+            icon: '🗑️',
+            duration: 3000,
+          });
+
           set((state) => ({
             files: state.files.filter((file) => file.id !== fileId),
             selectedFiles: state.selectedFiles.filter((id) => id !== fileId),
           }));
         } catch (error) {
+          const currentFile = get().files.find(file => file.id === fileId);
+          const fileName = currentFile?.name || 'File';
+          toast.error(`Failed to move "${fileName}" to trash`, {
+            icon: '❌',
+            duration: 4000,
+          });
           throw error;
         }
       },

@@ -8,6 +8,57 @@ import (
 	"strings"
 )
 
+// UpsertUserFileInfo inserts or updates a user_file_info record
+func (r *FileCrudRepo) UpsertUserFileInfo(username, filename string, tags *string, starred *bool) error {
+	// Build upsert query
+	setClauses := []string{}
+	args := []interface{}{username, filename}
+	argIdx := 3
+	if tags != nil {
+		setClauses = append(setClauses, "tags = $"+fmt.Sprint(argIdx))
+		args = append(args, *tags)
+		argIdx++
+	}
+	if starred != nil {
+		setClauses = append(setClauses, "starred = $"+fmt.Sprint(argIdx))
+		args = append(args, *starred)
+		argIdx++
+	}
+	// Insert if not exists, else update
+	query := "INSERT INTO user_file_info (username, filename"
+	if tags != nil {
+		query += ", tags"
+	}
+	if starred != nil {
+		query += ", starred"
+	}
+	query += ") VALUES ($1, $2"
+	if tags != nil {
+		query += ", $3"
+	}
+	if starred != nil {
+		if tags != nil {
+			query += ", $4"
+		} else {
+			query += ", $3"
+		}
+	}
+	query += ") ON CONFLICT (username, filename) DO UPDATE SET " + strings.Join(setClauses, ", ")
+	_, err := r.Db.Exec(query, args...)
+	return err
+}
+
+// GetFileSizeBySha256 returns the file size in bytes for a given sha256
+func (r *FileCrudRepo) GetFileSizeBySha256(sha256 string) (float64, error) {
+	var fileSize float64
+	err := r.Db.QueryRow("SELECT file_size FROM file_metadata WHERE sha256 = $1", sha256).Scan(&fileSize)
+	if err != nil {
+		return 0, err
+	}
+	return fileSize, nil
+}
+
+
 // Analytics queries
 func (r *FileCrudRepo) GetLogicalFilesAndUniqueUploaders() (logicalFiles int, uniqueUploaders int, err error) {
 	logicalFiles = 0
