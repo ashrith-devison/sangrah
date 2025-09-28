@@ -1,0 +1,49 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  Testing_whether_app_is_working_or_not:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Install Docker Compose
+        run: |
+          sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.6/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+          docker-compose version
+      - name: Build and start all services
+        run: docker-compose up -d --build
+      - name: Wait for backend to be healthy
+        run: |
+          for i in {1..30}; do
+            if curl -s http://localhost:8080/ > /dev/null; then
+              echo "Backend is up!";
+              break
+            fi
+            sleep 2
+          done
+          if ! curl -s http://localhost:8080/ > /dev/null; then
+            echo "Backend did not start in time"; exit 1
+          fi
+      - name: Wait for frontend to be healthy
+        run: |
+          for i in {1..30}; do
+            if curl -s http://localhost:3000/ > /dev/null; then
+              echo "Frontend is up!";
+              break
+            fi
+            sleep 2
+          done
+          if ! curl -s http://localhost:3000/ > /dev/null; then
+            echo "Frontend did not start in time"; exit 1
+          fi
+      - name: Print success if all services are healthy
+        run: |
+          echo "All services are healthy!"
