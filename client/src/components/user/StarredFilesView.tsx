@@ -100,45 +100,35 @@ export default function StarredFilesView({ items: propItems }: StarredFilesViewP
     }
   };
 
-  // Add star to a file
-  const handleAddStar = async (filename: string) => {
+  const handleRemoveStar = async (itemId: string) => {
     try {
-      // Get username
+      const item = items.find(i => i.id === itemId);
+      if (!item) return;
       const username = user?.name || user?.email || 'ashrith-sai';
       if (!username) {
         toast.error('User not authenticated');
         return;
       }
-
-      // Show loading toast
-      const loadingToast = toast.loading(`Adding "${filename}" to starred files...`);
-
-      // Make API call to update file info
+      const loadingToast = toast.loading(`Removing "${item.name}" from starred files...`);
       const updateData: UpdateFileInfoRequest = {
         username: username,
-        filename: filename,
-        starred: true
+        filename: item.name,
+        starred: false
       };
-
       const response = await api.post<UpdateFileInfoResponse>(
         '/v1/file/update-info',
         updateData
       );
-
-      // Dismiss loading toast
       toast.dismiss(loadingToast);
-
       if (response.data.status === 'success') {
-        toast.success(`"${filename}" added to starred files`);
-        // Refresh the list to show updated data
+        toast.success(`"${item.name}" removed from starred files`);
         fetchStarredFiles();
       } else {
         throw new Error(response.data.message || 'Failed to update file info');
       }
-      
     } catch (err) {
-      console.error('Error adding star:', err);
-      toast.error('Failed to add star. Please try again.');
+      console.error('Error removing star:', err);
+      toast.error('Failed to remove star. Please try again.');
     }
   };
 
@@ -188,76 +178,7 @@ export default function StarredFilesView({ items: propItems }: StarredFilesViewP
       }
     });
 
-  const handleRemoveStar = async (itemId: string) => {
-    // Prevent multiple operations on the same item
-    if (updatingItems.has(itemId)) {
-      return;
-    }
 
-    try {
-      // Find the item to unstar
-      const item = items.find(i => i.id === itemId);
-      if (!item) {
-        toast.error('File not found');
-        return;
-      }
-
-      // Get username
-      const username = user?.name || user?.email || 'ashrith-sai';
-      if (!username) {
-        toast.error('User not authenticated');
-        return;
-      }
-
-      // Add to updating set and remove from local state immediately for better UX
-      setUpdatingItems(prev => new Set(prev).add(itemId));
-      setItems(prevItems => prevItems.filter(i => i.id !== itemId));
-      
-      // Show loading toast
-      const loadingToast = toast.loading(`Removing "${item.name}" from starred files...`);
-      
-      // Make API call to update file info
-      const updateData: UpdateFileInfoRequest = {
-        username: username,
-        filename: item.name,
-        starred: false
-      };
-
-      const response = await api.post<UpdateFileInfoResponse>(
-        '/v1/file/update-info',
-        updateData
-      );
-
-      // Dismiss loading toast
-      toast.dismiss(loadingToast);
-
-      if (response.data.status === 'success') {
-        toast.success(`"${item.name}" removed from starred files`);
-      } else {
-        throw new Error(response.data.message || 'Failed to update file info');
-      }
-      
-    } catch (err) {
-      console.error('Error removing star:', err);
-      
-      // Revert local state change on API failure
-      const item = items.find(i => i.id === itemId);
-      if (item) {
-        setItems(prevItems => [...prevItems, item].sort((a, b) => 
-          new Date(b.starredDate).getTime() - new Date(a.starredDate).getTime()
-        ));
-      }
-      
-      toast.error('Failed to remove star. Please try again.');
-    } finally {
-      // Remove from updating set
-      setUpdatingItems(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(itemId);
-        return newSet;
-      });
-    }
-  };
 
   return (
     <TooltipProvider>

@@ -9,6 +9,8 @@ export interface RecentFile {
   starred: boolean;
   folder: string;
   owner: string;
+  fileId?: string; // For backend fileId
+  filename?: string; // For backend filename
 }
 
 export interface FileTypeOption {

@@ -122,7 +122,6 @@ func UpdateFileInfoHandler(w http.ResponseWriter, r *http.Request) {
 	utils.WriteAPIResponse(w, http.StatusOK, "File info upserted", nil)
 }
 
-
 // SharedWithMeHandler returns files shared with the user by others
 // @Summary List files shared with user
 // @Description Returns files where shared_with = username and permission != 'owner'
@@ -460,7 +459,7 @@ func OwnedFilesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 	fileCrudRepo := repos.FileCrudRepo{Db: db}
-	rows, err := fileCrudRepo.Db.Query(`SELECT id, username, file_id, filename, permission, path FROM user_files WHERE username = $1 AND permission = 'owner'`, username)
+	rows, err := fileCrudRepo.Db.Query(`SELECT id, username, file_id, filename, permission, path, created_at FROM user_files WHERE username = $1 AND permission = 'owner'`, username)
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to fetch owned files", err.Error())
 		return
@@ -471,7 +470,8 @@ func OwnedFilesHandler(w http.ResponseWriter, r *http.Request) {
 		var id int
 		var uname, fileId, filename, permission string
 		var path sql.NullString
-		if err := rows.Scan(&id, &uname, &fileId, &filename, &permission, &path); err != nil {
+		var createdAt string
+		if err := rows.Scan(&id, &uname, &fileId, &filename, &permission, &path, &createdAt); err != nil {
 			utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to scan row", err.Error())
 			return
 		}
@@ -494,9 +494,8 @@ func OwnedFilesHandler(w http.ResponseWriter, r *http.Request) {
 					return "/"
 				}
 			}(),
-
-			"size_mb": fileSizeBytes / (1024 * 1024),
-
+			"size_mb":    fileSizeBytes / (1024 * 1024),
+			"created_at": createdAt,
 		})
 	}
 	utils.WriteAPIResponse(w, http.StatusOK, "Owned files fetched", files)

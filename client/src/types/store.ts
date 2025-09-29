@@ -35,6 +35,7 @@ export interface FileItem {
   name: string;
   type: 'file' | 'folder';
   size: string | number;
+  size_mb?: number;
   mimeType?: string;
   url?: string;
   thumbnailUrl?: string;

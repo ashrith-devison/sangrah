@@ -13,8 +13,9 @@ import RecentFileGrid from './RecentFileGrid';
 import RecentFileList from './RecentFileList';
 import EmptyState from './EmptyState';
 
-interface RecentFilesViewProps {
+export interface RecentFilesViewProps {
   files: RecentFile[];
+  loading?: boolean;
 }
 
 const fileTypeOptions: FileTypeOption[] = [
@@ -28,12 +29,12 @@ const fileTypeOptions: FileTypeOption[] = [
   { value: 'presentation', label: 'Presentations' },
 ];
 
-export default function RecentFilesView({ files }: RecentFilesViewProps) {
+export default function RecentFilesView({ files, loading }: RecentFilesViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('modified');
   const [filterType, setFilterType] = useState('all');
-  const [isLoading, setIsLoading] = useState(false);
+  const isLoading = loading;
 
   const filteredFiles = files
     .filter(file => {
@@ -58,10 +59,7 @@ export default function RecentFilesView({ files }: RecentFilesViewProps) {
       }
     });
 
-  const handleSimulateLoading = () => {
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 2000);
-  };
+  // Loading is controlled by parent prop
 
   return (
     <TooltipProvider>
@@ -95,18 +93,16 @@ export default function RecentFilesView({ files }: RecentFilesViewProps) {
       {/* Files Display */}
       <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-sm">
         <CardContent className="p-6">
-          {filteredFiles.length === 0 && !isLoading ? (
+          {isLoading ? (
             <EmptyState
               searchQuery={searchQuery}
               isLoading={isLoading}
-              onSimulateLoading={handleSimulateLoading}
               viewMode={viewMode}
             />
-          ) : isLoading ? (
+          ) : filteredFiles.length === 0 ? (
             <EmptyState
               searchQuery={searchQuery}
-              isLoading={isLoading}
-              onSimulateLoading={handleSimulateLoading}
+              isLoading={false}
               viewMode={viewMode}
             />
           ) : viewMode === 'grid' ? (
