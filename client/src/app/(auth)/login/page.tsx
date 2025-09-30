@@ -148,6 +148,7 @@ export default function LoginPage() {
             id: '', // Will be set from backend if needed
             email: email,
             name: username, // Using username as name
+            username: username || '',
             role: role || 'user', // Use role from backend response
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),

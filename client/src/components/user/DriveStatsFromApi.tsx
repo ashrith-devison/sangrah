@@ -3,12 +3,11 @@ import { Download, Star, FileText, Users, Copy, Archive, BarChart3, FolderKanban
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/stores/hooks';
 import DriveStatsCharts from '@/components/user/DriveStatsCharts';
-import type { DriveStatsProps } from '@/components/user/DriveStats';
 import api from '@/lib/api';
 
 export default function DriveStatsFromApi() {
   const { user } = useAuth();
-  const [stats, setStats] = useState<DriveStatsProps['stats'] | null>(null);
+  const [stats, setStats] = useState<any>(null);
   const [statsRaw, setStatsRaw] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
