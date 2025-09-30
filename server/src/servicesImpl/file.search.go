@@ -1,6 +1,7 @@
 package servicesImpl
 
 import (
+	"backend/src/config"
 	"backend/src/dto"
 	"backend/src/repos"
 	"backend/src/utils"
@@ -10,8 +11,8 @@ type FileSearchService struct {
 	repo *repos.FileSearchRepo
 }
 
-func NewFileSearchService() *FileSearchService {
-	db, err := utils.ConnectPostgres()
+func NewFileSearchService(cfg *config.Config) *FileSearchService {
+	db, err := utils.ConnectPostgresWithConfig(cfg)
 	if err != nil {
 		panic("Failed to connect to DB: " + err.Error())
 	}

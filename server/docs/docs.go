@@ -976,6 +976,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/file/stats": {
+            "get": {
+                "description": "Returns stats: number of owned files, duplicate files, large files, starred files, total storage used",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "file"
+                ],
+                "summary": "Get file stats for a user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username to get stats for",
+                        "name": "username",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "User file stats",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Missing username",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIError"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/file/storage-quota": {
             "get": {
                 "description": "Returns the storage quota used by the user in MB",

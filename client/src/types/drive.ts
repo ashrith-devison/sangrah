@@ -9,6 +9,7 @@ export interface DriveFileItem {
   // Additional computed properties
   type?: 'document' | 'presentation' | 'image' | 'video' | 'audio' | 'archive' | 'other';
   size?: string;
+  size_mb?: number; // Double file size in MB
   modified: string; // Made required
   shared?: boolean;
   thumbnail?: string | null;

@@ -1,6 +1,7 @@
 package servicesImpl
 
 import (
+	"backend/src/config"
 	"backend/src/dto"
 	"backend/src/repos"
 	"backend/src/utils"
@@ -10,8 +11,8 @@ type UserFileCrudService struct {
 	Repo *repos.FileCrudRepo
 }
 
-func NewUserFileCrudService() *UserFileCrudService {
-	db, err := utils.ConnectPostgres()
+func NewUserFileCrudService(cfg *config.Config) *UserFileCrudService {
+	db, err := utils.ConnectPostgresWithConfig(cfg)
 	if err != nil {
 		panic("Failed to connect to DB: " + err.Error())
 	}

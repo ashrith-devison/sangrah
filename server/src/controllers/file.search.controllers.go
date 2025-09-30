@@ -7,13 +7,15 @@ import (
 	"net/http"
 	"strconv"
 
+	"backend/src/config"
+
 	"go.uber.org/zap"
 )
 
 var fileSearchService *servicesImpl.FileSearchService
 
-func InitFileSearchService() {
-	fileSearchService = servicesImpl.NewFileSearchService()
+func InitFileSearchService(cfg *config.Config) {
+	fileSearchService = servicesImpl.NewFileSearchService(cfg)
 }
 
 // SearchFilesHandler handles file search and filtering

@@ -29,5 +29,6 @@ func LoadConfig() (*Config, error) {
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, err
 	}
+	println("[DEBUG] RateLimit loaded from env/config:", cfg.RateLimit)
 	return &cfg, nil
 }

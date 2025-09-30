@@ -16,8 +16,8 @@ type FileShareService struct {
 	repo *repos.FileShareRepo
 }
 
-func NewFileShareService() *FileShareService {
-	db, err := utils.ConnectPostgres()
+func NewFileShareService(cfg *config.Config) *FileShareService {
+	db, err := utils.ConnectPostgresWithConfig(cfg)
 	if err != nil {
 		panic("Failed to connect to DB: " + err.Error())
 	}
@@ -37,6 +37,14 @@ func (s *FileShareService) ListSharedFiles(username string) ([]dto.UserFile, err
 	return s.repo.ListSharedFiles(username)
 }
 
+func NewPublicShareService(cfg *config.Config) *PublicShareService {
+	db, err := utils.ConnectPostgresWithConfig(cfg)
+	if err != nil {
+		panic("Failed to connect to DB: " + err.Error())
+	}
+	repo := repos.NewFileShareRepo(db)
+	return &PublicShareService{repo: repo, baseURL: cfg.PublicShareBaseURL}
+}
 func (s *FileShareService) RevokeFileShare(owner string, fileId string, recipient string) error {
 	return s.repo.RevokeFileShare(owner, fileId, recipient)
 }
@@ -46,16 +54,6 @@ func (s *FileShareService) RevokeFileShare(owner string, fileId string, recipien
 type PublicShareService struct {
 	repo    *repos.FileShareRepo // You may want a dedicated repo for public shares
 	baseURL string
-}
-
-func NewPublicShareService() *PublicShareService {
-	db, err := utils.ConnectPostgres()
-	if err != nil {
-		panic("Failed to connect to DB: " + err.Error())
-	}
-	repo := repos.NewFileShareRepo(db)
-	cfg, _ := config.LoadConfig()
-	return &PublicShareService{repo: repo, baseURL: cfg.PublicShareBaseURL}
 }
 
 // SharePublicly generates a token and persists mapping

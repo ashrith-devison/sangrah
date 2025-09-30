@@ -144,6 +144,7 @@ export default function AdminUsersPage() {
         const impersonatedUser = {
           id: targetUser?.id.toString() || userId.toString(),
           name: impersonatedUsername,
+          username: impersonatedUsername || '',
           email: targetUser?.email || '',
           role: 'user' as const, // Always user role when impersonating
           createdAt: targetUser?.createdAt || new Date().toISOString(),

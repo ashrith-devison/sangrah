@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"backend/src/config"
 	"backend/src/dto"
 	"backend/src/servicesImpl"
 	"backend/src/utils"
@@ -20,8 +21,8 @@ func AuthServiceUnavailable() bool {
 
 var authService *servicesImpl.AuthService
 
-func InitAuthService() {
-	authService = servicesImpl.NewAuthService()
+func InitAuthService(cfg *config.Config) {
+	authService = servicesImpl.NewAuthService(cfg)
 }
 
 // RegisterHandler handles user registration

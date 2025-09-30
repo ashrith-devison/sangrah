@@ -39,7 +39,8 @@ export const useUserStore = create<UserStore>()(
           const user = {
             id: userData.id || '',
             email: userData.email,
-            name: userData.username || userData.name,
+            name: userData.name || '',
+            username: userData.username || userData.name || '',
             role: userRole,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),

@@ -8,6 +8,7 @@ import (
 
 // RegisterFileRoutes registers file upload and related endpoints
 func RegisterFileRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/stats", controllers.UserStatsHandler) // GET /stats?username=...
 
 	mux.HandleFunc("/owned-info", controllers.OwnedFileInfoHandler)   // GET /owned-info?username=...
 	mux.HandleFunc("/update-info", controllers.UpdateFileInfoHandler) // POST /update-info

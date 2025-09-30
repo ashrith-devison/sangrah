@@ -20,6 +20,97 @@ import (
 	"go.uber.org/zap"
 )
 
+// UserStatsHandler returns file stats for a given username
+// @Summary Get file stats for a user
+// @Description Returns stats: number of owned files, duplicate files, large files, starred files, total storage used
+// @Tags file
+// @Produce json
+// @Param username query string true "Username to get stats for"
+// @Success 200 {object} map[string]interface{} "User file stats"
+// @Failure 400 {object} utils.APIError "Missing username"
+// @Failure 500 {object} utils.APIError "Internal server error"
+// @Router /api/v1/file/stats [get]
+func UserStatsHandler(w http.ResponseWriter, r *http.Request) {
+	username := r.URL.Query().Get("username")
+	if username == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username required")
+		return
+	}
+	db, err := utils.ConnectPostgres()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
+		return
+	}
+	defer db.Close()
+	fileCrudRepo := repos.FileCrudRepo{Db: db}
+
+	// Number of files shared in public
+	publicSharedCount, err := fileCrudRepo.GetPublicSharedCount(username)
+	if err != nil {
+		publicSharedCount = 0
+	}
+	// Total download count for user's owned files
+	downloadCount, err := fileCrudRepo.GetDownloadCount(username)
+	if err != nil {
+		downloadCount = 0
+	}
+
+	// Number of owned files
+	ownedCount, err := fileCrudRepo.GetOwnedFileCount(username)
+	if err != nil {
+		ownedCount = 0
+	}
+
+	// Number of duplicate files
+	duplicateCount, err := fileCrudRepo.GetDuplicateFileCount(username)
+	if err != nil {
+		duplicateCount = 0
+	}
+
+	// Number of large files (>10MB)
+	largeFilesCount, err := fileCrudRepo.GetLargeFileCount(username)
+	if err != nil {
+		largeFilesCount = 0
+	}
+
+	// Number of starred files
+	starredCount, err := fileCrudRepo.GetStarredFileCount(username)
+	if err != nil {
+		starredCount = 0
+	}
+
+	// Total storage used
+	usedMB, err := fileCrudRepo.GetUserStorageUsedMB(username)
+	if err != nil {
+		usedMB = 0
+	}
+
+	// Files uploaded in last 24 hours
+	last24hCount, err := fileCrudRepo.GetFilesUploadedLast24h(username)
+	if err != nil {
+		last24hCount = 0
+	}
+
+	// Files uploaded in last 1 week
+	lastWeekCount, err := fileCrudRepo.GetFilesUploadedLastWeek(username)
+	if err != nil {
+		lastWeekCount = 0
+	}
+
+	stats := map[string]interface{}{
+		"owned_files":         ownedCount,
+		"duplicate_files":     duplicateCount,
+		"large_files":         largeFilesCount,
+		"starred_files":       starredCount,
+		"storage_used_mb":     usedMB,
+		"uploaded_last_24h":   last24hCount,
+		"uploaded_last_week":  lastWeekCount,
+		"download_count":      downloadCount,
+		"public_shared_files": publicSharedCount,
+	}
+	utils.WriteAPIResponse(w, http.StatusOK, "User file stats fetched", stats)
+}
+
 // Get files owned by a user from user_file_info
 // @Summary List files owned by user (extended info)
 // @Description Returns files from user_file_info where username matches
@@ -223,7 +314,12 @@ func PublicShareHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req := dto.PublicShareRequest{FileId: fileId, Username: payload.Username}
-	publicShareService := servicesImpl.NewPublicShareService()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to load config", err.Error())
+		return
+	}
+	publicShareService := servicesImpl.NewPublicShareService(cfg)
 	resp, err := publicShareService.SharePublicly(req)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -252,7 +348,12 @@ func PublicAccessHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Missing token", "No token provided")
 		return
 	}
-	publicShareService := servicesImpl.NewPublicShareService()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to load config", err.Error())
+		return
+	}
+	publicShareService := servicesImpl.NewPublicShareService(cfg)
 	fileMeta, err := publicShareService.ResolveToken(token)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -318,7 +419,12 @@ func DeleteFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Username = username
 	// Use service layer for deletion
-	userFileCrudService := servicesImpl.NewUserFileCrudService()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to load config", err.Error())
+		return
+	}
+	userFileCrudService := servicesImpl.NewUserFileCrudService(cfg)
 	err = userFileCrudService.DeleteFile(req)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -424,6 +530,27 @@ func RenameFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 	fileCrudRepo := repos.FileCrudRepo{Db: db}
+
+	// Get file path using repo
+	filePath, err := fileCrudRepo.GetFilePathByUsernameAndFilename(req.Username, req.Filename)
+	if err != nil || filePath == "" {
+		utils.WriteAPIError(w, http.StatusNotFound, "File not found", "File not found for MIME validation")
+		return
+	}
+	// Open file and validate MIME type
+	f, err := os.Open(filePath)
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to open file for MIME validation", err.Error())
+		return
+	}
+	defer f.Close()
+	buffer := make([]byte, 512)
+	n, _ := f.Read(buffer)
+	if err := utils.ValidateMimeType(req.NewName, buffer[:n]); err != nil {
+		utils.WriteAPIError(w, http.StatusBadRequest, "MIME type mismatch", err.Error())
+		return
+	}
+
 	err = fileCrudRepo.RenameFileByFilename(req.Username, req.Filename, req.NewName)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -481,7 +608,7 @@ func OwnedFilesHandler(w http.ResponseWriter, r *http.Request) {
 			fileSizeBytes = 0 // If not found, default to 0
 		}
 
-		files = append(files, map[string]interface{}{
+		fileObj := map[string]interface{}{
 			"id":         id,
 			"username":   uname,
 			"fileId":     fileId,
@@ -494,9 +621,12 @@ func OwnedFilesHandler(w http.ResponseWriter, r *http.Request) {
 					return "/"
 				}
 			}(),
-			"size_mb":    fileSizeBytes / (1024 * 1024),
 			"created_at": createdAt,
-		})
+		}
+		if fileSizeBytes > 0 {
+			fileObj["size_mb"] = fileSizeBytes / (1024 * 1024)
+		}
+		files = append(files, fileObj)
 	}
 	utils.WriteAPIResponse(w, http.StatusOK, "Owned files fetched", files)
 }
@@ -667,7 +797,7 @@ func FileMetaUploadHandler(w http.ResponseWriter, r *http.Request) {
 				correctedFilename = strings.TrimSuffix(handler.Filename, originalExt) + correctExt
 			}
 		}
-		userFileCrudService := servicesImpl.NewUserFileCrudService()
+		userFileCrudService := servicesImpl.NewUserFileCrudService(cfg)
 		db, dbErr := utils.ConnectPostgres()
 		var dummy int
 		if dbErr == nil {
@@ -741,6 +871,53 @@ func ServeFileByPathHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
+
+	// Increment download_count in user_files for this file using repo
+	db2, err := utils.ConnectPostgres()
+	if err == nil {
+		defer db2.Close()
+		fileCrudRepo := repos.FileCrudRepo{Db: db2}
+		// If SHA256 is missing, look it up from DB using filename and username
+		fmt.Printf("logger: %v\n", fileMeta)
+		if fileMeta.SHA256 == "" {
+			var sha256 string
+			username := r.URL.Query().Get("username")
+			var err error
+			baseFilename := filepath.Base(fileMeta.Filename)
+			fmt.Printf("[DEBUG] DB lookup: fileMeta.Filename=%s, baseFilename=%s\n", fileMeta.Filename, baseFilename)
+			if username != "" {
+				err = db2.QueryRow("SELECT file_id FROM user_files WHERE filename = $1 AND username = $2", baseFilename, username).Scan(&sha256)
+			} else {
+				err = db2.QueryRow("SELECT file_id FROM user_files WHERE filename = $1 LIMIT 1", baseFilename).Scan(&sha256)
+			}
+			fmt.Printf("[DEBUG] DB lookup for SHA256: filename=%s, username=%s, result=%s, err=%v\n", baseFilename, username, sha256, err)
+			if err == nil && sha256 != "" {
+				fileMeta.SHA256 = sha256
+			} else {
+				// Fallback: extract file_id from path
+				fileId := strings.TrimPrefix(fileMeta.Path, "storage"+string(os.PathSeparator))
+				dot := strings.LastIndex(fileId, ".")
+				if dot > 0 {
+					fileId = fileId[:dot]
+				}
+				fileMeta.SHA256 = fileId
+				fmt.Printf("[DEBUG] Fallback fileId from path: %s\n", fileId)
+			}
+		}
+		// remove extension from SHA256 if present
+		if strings.Contains(fileMeta.SHA256, ".") {
+			fileMeta.SHA256 = strings.Split(fileMeta.SHA256, ".")[0]
+		}
+		fmt.Printf("logger after: %v\n", fileMeta.SHA256)
+		updateErr := fileCrudRepo.IncrementDownloadCount(fileMeta.SHA256)
+		fmt.Printf("Incrementing download count for fileId: %v\n", fileMeta.SHA256)
+		if updateErr != nil {
+			logger.Error("Failed to increment download_count", zap.String("requestID", requestID), zap.String("file_id", fileMeta.SHA256), zap.Error(updateErr))
+		}
+	} else {
+		logger.Error("Failed to connect to DB for download_count update", zap.String("requestID", requestID), zap.Error(err))
+	}
+
 	logger.Info("Serving file", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("path", fileMeta.Path))
 	w.Header().Set("Content-Disposition", "attachment; filename="+filepath.Base(cleanPath))
 	w.Header().Set("Content-Type", "application/octet-stream")
@@ -872,6 +1049,21 @@ func FileUploadHandler(w http.ResponseWriter, r *http.Request) {
 			uploadedFiles = append(uploadedFiles, map[string]interface{}{
 				"filename": handler.Filename,
 				"error":    "Storage quota exceeded",
+			})
+			continue
+		}
+		// Read first 512 bytes for MIME validation
+		buffer := make([]byte, 512)
+		n, _ := file.Read(buffer)
+		if seeker, ok := file.(io.Seeker); ok {
+			seeker.Seek(0, io.SeekStart)
+		}
+		// Validate MIME type using utility
+		if err := utils.ValidateMimeType(handler.Filename, buffer[:n]); err != nil {
+			logger.Error("MIME type mismatch", zap.String("requestID", requestID), zap.String("filename", handler.Filename), zap.Error(err))
+			uploadedFiles = append(uploadedFiles, map[string]interface{}{
+				"filename": handler.Filename,
+				"error":    err.Error(),
 			})
 			continue
 		}

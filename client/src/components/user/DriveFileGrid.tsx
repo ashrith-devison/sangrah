@@ -79,10 +79,11 @@ function displayFileSize(size: string | number | undefined): string {
   } else if (typeof size === 'number') {
     sizeMb = size;
   }
+  // Always show double with two decimals for MB
   if (sizeMb < 0.01) {
     return `${Math.round(sizeMb * 1024)} KB`;
   }
-  return `${sizeMb.toFixed(2)} MB`;
+  return `${Number(sizeMb).toFixed(2)} MB`;
 };
 
 const formatDate = (dateString?: string) => {
@@ -116,9 +117,6 @@ export default function DriveFileGrid({ files, onFileAction }: DriveFileGridProp
     setLocalFiles(files);
   }, [files]);
 
-  const handleAction = (action: string, file: DriveFileItem) => {
-    onFileAction?.(action, file);
-  };
 
   const handleStar = (updatedFile: any) => {
     setLocalFiles(prev => prev.map(f => (f.fileId === updatedFile.fileId ? { ...f, starred: updatedFile.starred } : f)));
@@ -150,12 +148,15 @@ export default function DriveFileGrid({ files, onFileAction }: DriveFileGridProp
         const iconColor = getFileColor(fileType);
         const uniqueKey = `${file.fileId || file.id}-${file.filename}`;
 
+        // Prefer size_mb if available, fallback to file.size
+        const fileSize = typeof file.size_mb === 'number' ? file.size_mb : file.size;
+
         // Map DriveFileItem to RecentFile
         const recentFile = {
           id: typeof file.id === 'number' ? file.id : 0,
           name: file.filename || '',
           type: getFileType(file.filename) as any,
-          size: typeof file.size === 'string' ? file.size : (file.size ? String(file.size) : '0 MB'),
+          size: typeof file.size_mb === 'number' ? `${file.size_mb} MB` : (typeof file.size === 'string' ? file.size : (file.size ? String(file.size) : '0 MB')),
           modified: file.modified || '',
           opened: '',
           shared: file.permission !== 'owner',
@@ -196,7 +197,7 @@ export default function DriveFileGrid({ files, onFileAction }: DriveFileGridProp
               </div>
               <div className="flex items-center justify-between text-xs text-gray-400">
                 <span>{getFileExtension(file.filename)}</span>
-                <span>{displayFileSize(file.size)}</span>
+                <span>{displayFileSize(fileSize)}</span>
               </div>
               <div className="flex items-center gap-2 text-xs text-gray-500">
                 <Clock className="w-3 h-3" />
