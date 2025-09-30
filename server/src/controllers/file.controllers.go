@@ -20,6 +20,199 @@ import (
 	"go.uber.org/zap"
 )
 
+// UserStatsHandler returns file stats for a given username
+// @Summary Get file stats for a user
+// @Description Returns stats: number of owned files, duplicate files, large files, starred files, total storage used
+// @Tags file
+// @Produce json
+// @Param username query string true "Username to get stats for"
+// @Success 200 {object} map[string]interface{} "User file stats"
+// @Failure 400 {object} utils.APIError "Missing username"
+// @Failure 500 {object} utils.APIError "Internal server error"
+// @Router /api/v1/file/stats [get]
+func UserStatsHandler(w http.ResponseWriter, r *http.Request) {
+	username := r.URL.Query().Get("username")
+	if username == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username required")
+		return
+	}
+	db, err := utils.ConnectPostgres()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
+		return
+	}
+	defer db.Close()
+	fileCrudRepo := repos.FileCrudRepo{Db: db}
+
+	// Number of files shared in public
+	publicSharedCount, err := fileCrudRepo.GetPublicSharedCount(username)
+	if err != nil {
+		publicSharedCount = 0
+	}
+	// Total download count for user's owned files
+	downloadCount, err := fileCrudRepo.GetDownloadCount(username)
+	if err != nil {
+		downloadCount = 0
+	}
+
+	// Number of owned files
+	ownedCount, err := fileCrudRepo.GetOwnedFileCount(username)
+	if err != nil {
+		ownedCount = 0
+	}
+
+	// Number of duplicate files
+	duplicateCount, err := fileCrudRepo.GetDuplicateFileCount(username)
+	if err != nil {
+		duplicateCount = 0
+	}
+
+	// Number of large files (>10MB)
+	largeFilesCount, err := fileCrudRepo.GetLargeFileCount(username)
+	if err != nil {
+		largeFilesCount = 0
+	}
+
+	// Number of starred files
+	starredCount, err := fileCrudRepo.GetStarredFileCount(username)
+	if err != nil {
+		starredCount = 0
+	}
+
+	// Total storage used
+	usedMB, err := fileCrudRepo.GetUserStorageUsedMB(username)
+	if err != nil {
+		usedMB = 0
+	}
+
+	// Files uploaded in last 24 hours
+	last24hCount, err := fileCrudRepo.GetFilesUploadedLast24h(username)
+	if err != nil {
+		last24hCount = 0
+	}
+
+	// Files uploaded in last 1 week
+	lastWeekCount, err := fileCrudRepo.GetFilesUploadedLastWeek(username)
+	if err != nil {
+		lastWeekCount = 0
+	}
+
+	stats := map[string]interface{}{
+		"owned_files":         ownedCount,
+		"duplicate_files":     duplicateCount,
+		"large_files":         largeFilesCount,
+		"starred_files":       starredCount,
+		"storage_used_mb":     usedMB,
+		"uploaded_last_24h":   last24hCount,
+		"uploaded_last_week":  lastWeekCount,
+		"download_count":      downloadCount,
+		"public_shared_files": publicSharedCount,
+	}
+	utils.WriteAPIResponse(w, http.StatusOK, "User file stats fetched", stats)
+}
+
+// Get files owned by a user from user_file_info
+// @Summary List files owned by user (extended info)
+// @Description Returns files from user_file_info where username matches
+// @Tags file
+// @Produce json
+// @Param username query string true "Username to list owned files for"
+// @Success 200 {array} map[string]interface{} "List of owned files"
+// @Failure 400 {object} utils.APIError "Missing username"
+// @Failure 500 {object} utils.APIError "Internal server error"
+// @Router /api/v1/file/owned-info [get]
+func OwnedFileInfoHandler(w http.ResponseWriter, r *http.Request) {
+	username := r.URL.Query().Get("username")
+	if username == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username required")
+		return
+	}
+	db, err := utils.ConnectPostgres()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
+		return
+	}
+	defer db.Close()
+	rows, err := db.Query(`
+		SELECT ufi.id, ufi.username, ufi.filename, ufi.tags, ufi.upload_time, ufi.starred, ufi.permission, uf.file_id
+		FROM user_file_info ufi
+		JOIN user_files uf ON ufi.username = uf.username AND ufi.filename = uf.filename
+		WHERE ufi.username = $1
+	`, username)
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to fetch files", err.Error())
+		return
+	}
+	defer rows.Close()
+	var files []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var uname, filename, tags, permission, shaFileId string
+		var uploadTime string
+		var starred bool
+		if err := rows.Scan(&id, &uname, &filename, &tags, &uploadTime, &starred, &permission, &shaFileId); err != nil {
+			utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to scan row", err.Error())
+			return
+		}
+		files = append(files, map[string]interface{}{
+			"id":          id,
+			"username":    uname,
+			"filename":    filename,
+			"tags":        tags,
+			"upload_time": uploadTime,
+			"starred":     starred,
+			"permission":  permission,
+			"sha_file_id": shaFileId,
+		})
+	}
+	utils.WriteAPIResponse(w, http.StatusOK, "Owned file info fetched", files)
+}
+
+// API to mark a file as starred or update its tag
+// @Summary Mark file as starred or update tag
+// @Description Updates starred or tag for a file in user_file_info
+// @Tags file
+// @Accept json
+// @Produce json
+// @Param payload body map[string]interface{} true "Payload: username, filename, starred, tags"
+// @Success 200 {object} utils.APIResponse "File updated"
+// @Failure 400 {object} utils.APIError "Missing fields"
+// @Failure 500 {object} utils.APIError "Internal server error"
+// @Router /api/v1/file/update-info [post]
+func UpdateFileInfoHandler(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Username string `json:"username"`
+		Filename string `json:"filename"`
+		Starred  *bool  `json:"starred"`
+		Tags     string `json:"tags"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid request payload", err.Error())
+		return
+	}
+	if payload.Username == "" || payload.Filename == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "username, filename required")
+		return
+	}
+	db, err := utils.ConnectPostgres()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
+		return
+	}
+	defer db.Close()
+	fileCrudRepo := repos.FileCrudRepo{Db: db}
+	var tagsPtr *string
+	if payload.Tags != "" {
+		tagsPtr = &payload.Tags
+	}
+	err = fileCrudRepo.UpsertUserFileInfo(payload.Username, payload.Filename, tagsPtr, payload.Starred)
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to upsert file info", err.Error())
+		return
+	}
+	utils.WriteAPIResponse(w, http.StatusOK, "File info upserted", nil)
+}
+
 // SharedWithMeHandler returns files shared with the user by others
 // @Summary List files shared with user
 // @Description Returns files where shared_with = username and permission != 'owner'
@@ -393,7 +586,7 @@ func OwnedFilesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 	fileCrudRepo := repos.FileCrudRepo{Db: db}
-	rows, err := fileCrudRepo.Db.Query(`SELECT id, username, file_id, filename, permission, path FROM user_files WHERE username = $1 AND permission = 'owner'`, username)
+	rows, err := fileCrudRepo.Db.Query(`SELECT id, username, file_id, filename, permission, path, created_at FROM user_files WHERE username = $1 AND permission = 'owner'`, username)
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to fetch owned files", err.Error())
 		return
@@ -404,11 +597,18 @@ func OwnedFilesHandler(w http.ResponseWriter, r *http.Request) {
 		var id int
 		var uname, fileId, filename, permission string
 		var path sql.NullString
-		if err := rows.Scan(&id, &uname, &fileId, &filename, &permission, &path); err != nil {
+		var createdAt string
+		if err := rows.Scan(&id, &uname, &fileId, &filename, &permission, &path, &createdAt); err != nil {
 			utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to scan row", err.Error())
 			return
 		}
-		files = append(files, map[string]interface{}{
+		// Query file_size from file_metadata using repo method
+		fileSizeBytes, err := fileCrudRepo.GetFileSizeBySha256(fileId)
+		if err != nil {
+			fileSizeBytes = 0 // If not found, default to 0
+		}
+
+		fileObj := map[string]interface{}{
 			"id":         id,
 			"username":   uname,
 			"fileId":     fileId,
@@ -421,7 +621,12 @@ func OwnedFilesHandler(w http.ResponseWriter, r *http.Request) {
 					return "/"
 				}
 			}(),
-		})
+			"created_at": createdAt,
+		}
+		if fileSizeBytes > 0 {
+			fileObj["size_mb"] = fileSizeBytes / (1024 * 1024)
+		}
+		files = append(files, fileObj)
 	}
 	utils.WriteAPIResponse(w, http.StatusOK, "Owned files fetched", files)
 }
@@ -672,7 +877,40 @@ func ServeFileByPathHandler(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		defer db2.Close()
 		fileCrudRepo := repos.FileCrudRepo{Db: db2}
+		// If SHA256 is missing, look it up from DB using filename and username
+		fmt.Printf("logger: %v\n", fileMeta)
+		if fileMeta.SHA256 == "" {
+			var sha256 string
+			username := r.URL.Query().Get("username")
+			var err error
+			baseFilename := filepath.Base(fileMeta.Filename)
+			fmt.Printf("[DEBUG] DB lookup: fileMeta.Filename=%s, baseFilename=%s\n", fileMeta.Filename, baseFilename)
+			if username != "" {
+				err = db2.QueryRow("SELECT file_id FROM user_files WHERE filename = $1 AND username = $2", baseFilename, username).Scan(&sha256)
+			} else {
+				err = db2.QueryRow("SELECT file_id FROM user_files WHERE filename = $1 LIMIT 1", baseFilename).Scan(&sha256)
+			}
+			fmt.Printf("[DEBUG] DB lookup for SHA256: filename=%s, username=%s, result=%s, err=%v\n", baseFilename, username, sha256, err)
+			if err == nil && sha256 != "" {
+				fileMeta.SHA256 = sha256
+			} else {
+				// Fallback: extract file_id from path
+				fileId := strings.TrimPrefix(fileMeta.Path, "storage"+string(os.PathSeparator))
+				dot := strings.LastIndex(fileId, ".")
+				if dot > 0 {
+					fileId = fileId[:dot]
+				}
+				fileMeta.SHA256 = fileId
+				fmt.Printf("[DEBUG] Fallback fileId from path: %s\n", fileId)
+			}
+		}
+		// remove extension from SHA256 if present
+		if strings.Contains(fileMeta.SHA256, ".") {
+			fileMeta.SHA256 = strings.Split(fileMeta.SHA256, ".")[0]
+		}
+		fmt.Printf("logger after: %v\n", fileMeta.SHA256)
 		updateErr := fileCrudRepo.IncrementDownloadCount(fileMeta.SHA256)
+		fmt.Printf("Incrementing download count for fileId: %v\n", fileMeta.SHA256)
 		if updateErr != nil {
 			logger.Error("Failed to increment download_count", zap.String("requestID", requestID), zap.String("file_id", fileMeta.SHA256), zap.Error(updateErr))
 		}

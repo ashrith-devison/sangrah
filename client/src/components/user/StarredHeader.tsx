@@ -1,9 +1,15 @@
 import React from 'react';
-import { Star } from 'lucide-react';
+import { Star, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { StarredHeaderProps } from '@/types/starred';
 
-export default function StarredHeader({ totalItems }: StarredHeaderProps) {
+interface ExtendedStarredHeaderProps extends StarredHeaderProps {
+  onRefresh?: () => void;
+  isLoading?: boolean;
+}
+
+export default function StarredHeader({ totalItems, onRefresh, isLoading }: ExtendedStarredHeaderProps) {
   return (
     <div className="mb-8">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
@@ -23,6 +29,18 @@ export default function StarredHeader({ totalItems }: StarredHeaderProps) {
           >
             {totalItems} starred items
           </Badge>
+          {onRefresh && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRefresh}
+              disabled={isLoading}
+              className="border-zinc-700 hover:border-zinc-600"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          )}
         </div>
       </div>
     </div>

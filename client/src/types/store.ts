@@ -3,6 +3,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  username: string;
   avatar?: string;
   role: 'user' | 'admin';
   createdAt: string;
@@ -34,7 +35,8 @@ export interface FileItem {
   id: string;
   name: string;
   type: 'file' | 'folder';
-  size: string;
+  size: string | number;
+  size_mb?: number;
   mimeType?: string;
   url?: string;
   thumbnailUrl?: string;
@@ -45,6 +47,13 @@ export interface FileItem {
   isStarred: boolean;
   isShared: boolean;
   sharedWith?: string[];
+  // Additional properties for drive integration
+  fileId?: string;
+  path?: string;
+  dateModified?: string;
+  username?: string;
+  permission?: string;
+  tags?: string;
 }
 
 export interface UploadProgress {
@@ -74,6 +83,7 @@ export interface FileState {
 export interface FileActions {
   // File operations
   fetchFiles: (folderId?: string) => Promise<void>;
+  fetchDriveFiles: (username: string) => Promise<void>;
   uploadFile: (file: File, folderId?: string) => Promise<void>;
   createFolder: (name: string, parentId?: string) => Promise<void>;
   renameFile: (fileId: string, newName: string) => Promise<void>;
@@ -82,7 +92,7 @@ export interface FileActions {
   copyFile: (fileId: string, targetFolderId: string) => Promise<void>;
   
   // Starred files
-  toggleStar: (fileId: string) => Promise<void>;
+  toggleStar: (filename: string, username?: string) => Promise<void>;
   fetchStarredFiles: () => Promise<void>;
   
   // Shared files

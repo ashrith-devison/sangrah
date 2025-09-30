@@ -34,3 +34,5 @@ postgres_data/
 .logs/
 storage/
 tmp/
+
+.env

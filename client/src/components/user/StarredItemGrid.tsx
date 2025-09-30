@@ -18,6 +18,8 @@ import {
   Copy,
   Settings,
   StarOff,
+  MoreVertical,
+  ExternalLink,
 } from 'lucide-react';
 import {
   ContextMenu,
@@ -27,16 +29,40 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
 import { StarredItemGridProps, StarredItem } from '@/types/starred';
+import api from '@/lib/api';
+import { toast } from 'sonner';
+import { useUserStore } from '@/stores/userStore';
+import { RecentFileDropdown } from './RecentFileDropdown';
+
+// Component to handle authenticated iframe loading with browser compatibility
 
 export default function StarredItemGrid({
   items,
   onRemoveStar,
 }: StarredItemGridProps) {
+  const { user } = useUserStore();
+  const [previewItem, setPreviewItem] = React.useState<StarredItem | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+
   const getFileIcon = (item: StarredItem) => {
     if (item.type === 'folder') return Folder;
 
@@ -83,17 +109,36 @@ export default function StarredItemGrid({
       {items.map(item => {
         const ItemIcon = getFileIcon(item);
         const iconColor = getFileColor(item);
-
+        // Map StarredItem to RecentFile shape
+        const validTypes = ['document', 'audio', 'video', 'image', 'presentation', 'archive', 'design'];
+        const mappedType: 'document' | 'audio' | 'video' | 'image' | 'presentation' | 'archive' | 'design' =
+          validTypes.includes(item.fileType || '') ? (item.fileType as any) : 'document';
+        const recentFile = {
+          id: Number(item.id),
+          name: item.name,
+          type: mappedType,
+          size: item.size,
+          modified: item.lastModified,
+          opened: item.starredDate,
+          shared: item.isShared,
+          starred: true,
+          folder: '',
+          owner: item.owner,
+          fileId: item.shaFileId,
+          filename: item.name,
+        };
         return (
           <ContextMenu key={item.id}>
             <ContextMenuTrigger>
-              <div className="group bg-zinc-800/30 hover:bg-zinc-800/50 border border-zinc-700 rounded-xl p-3 sm:p-4 cursor-pointer transition-all hover:border-[#6e73fa]/50">
+              <div
+                className="group bg-zinc-800/30 hover:bg-zinc-800/50 border border-zinc-700 rounded-xl p-3 sm:p-4 cursor-pointer transition-all hover:border-[#6e73fa]/50 min-w-0 w-full"
+              >
                 <div className="flex items-start justify-between mb-2 sm:mb-3">
-                  <div className="flex items-center gap-1 sm:gap-2">
+                  <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <ItemIcon
-                          className={`w-6 h-6 sm:w-8 sm:h-8 ${iconColor}`}
+                          className={`w-6 h-6 sm:w-8 sm:h-8 ${iconColor} flex-shrink-0`}
                         />
                       </TooltipTrigger>
                       <TooltipContent className="bg-zinc-800 border-zinc-700">
@@ -107,7 +152,7 @@ export default function StarredItemGrid({
                     {item.isShared && (
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Users className="w-3 h-3 sm:w-4 sm:h-4 text-blue-400" />
+                          <Users className="w-3 h-3 sm:w-4 sm:h-4 text-blue-400 flex-shrink-0" />
                         </TooltipTrigger>
                         <TooltipContent className="bg-zinc-800 border-zinc-700">
                           <p className="text-white">Shared item</p>
@@ -115,15 +160,16 @@ export default function StarredItemGrid({
                       </Tooltip>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 sm:gap-2">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Star className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-400 fill-current" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-zinc-800 border-zinc-700">
-                        <p className="text-white">Starred item</p>
-                      </TooltipContent>
-                    </Tooltip>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {/* Star indicator - always visible */}
+                    <Star className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-400 fill-current flex-shrink-0" />
+                    {/* Dropdown beside star */}
+                    <RecentFileDropdown
+                      file={recentFile}
+                      onStar={file => onRemoveStar(item.id)}
+                      onDelete={file => onRemoveStar(item.id)}
+                      triggerClassName="ml-1"
+                    />
                   </div>
                 </div>
                 <h3
@@ -156,40 +202,6 @@ export default function StarredItemGrid({
                 </div>
               </div>
             </ContextMenuTrigger>
-            <ContextMenuContent className="bg-zinc-800 border-zinc-700">
-              <ContextMenuItem className="text-white hover:bg-zinc-700">
-                <Eye className="w-4 h-4 mr-2" />
-                Preview
-              </ContextMenuItem>
-              <ContextMenuItem className="text-white hover:bg-zinc-700">
-                <Download className="w-4 h-4 mr-2" />
-                Download
-              </ContextMenuItem>
-              <ContextMenuItem className="text-white hover:bg-zinc-700">
-                <Share2 className="w-4 h-4 mr-2" />
-                Share
-              </ContextMenuItem>
-              <ContextMenuItem className="text-white hover:bg-zinc-700">
-                <Copy className="w-4 h-4 mr-2" />
-                Copy Link
-              </ContextMenuItem>
-              <ContextMenuSeparator className="bg-zinc-700" />
-              <ContextMenuItem className="text-white hover:bg-zinc-700">
-                <Settings className="w-4 h-4 mr-2" />
-                Properties
-              </ContextMenuItem>
-              <ContextMenuItem
-                className="text-yellow-400 hover:bg-zinc-700"
-                onClick={() => onRemoveStar(item.id)}
-              >
-                <StarOff className="w-4 h-4 mr-2" />
-                Remove Star
-              </ContextMenuItem>
-              <ContextMenuItem className="text-red-400 hover:bg-zinc-700">
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete
-              </ContextMenuItem>
-            </ContextMenuContent>
           </ContextMenu>
         );
       })}

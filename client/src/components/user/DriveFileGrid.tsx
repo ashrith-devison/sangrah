@@ -14,25 +14,11 @@ import {
   Clock,
   Users,
   File,
-  MoreVertical,
-  Edit3,
+  Star,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from '@/components/ui/context-menu';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { RecentFileDropdown } from './RecentFileDropdown';
 import { DriveFileItem } from '@/types/drive';
 
 interface DriveFileGridProps {
@@ -78,9 +64,26 @@ const getFileExtension = (filename: string) => {
   return filename.split('.').pop()?.toUpperCase() || 'FILE';
 };
 
-const formatFileSize = (filename: string) => {
-  // This is a placeholder - in real app you'd get size from API
-  return '2.4 MB';
+
+// Format file size for display
+function displayFileSize(size: string | number | undefined): string {
+  let sizeMb = 0;
+  if (typeof size === 'string') {
+    const match = size.match(/([\d.]+)\s*MB/i);
+    if (match) {
+      sizeMb = parseFloat(match[1]);
+    } else if (size.match(/([\d.]+)\s*KB/i)) {
+      // If already formatted as KB, just return
+      return size;
+    }
+  } else if (typeof size === 'number') {
+    sizeMb = size;
+  }
+  // Always show double with two decimals for MB
+  if (sizeMb < 0.01) {
+    return `${Math.round(sizeMb * 1024)} KB`;
+  }
+  return `${Number(sizeMb).toFixed(2)} MB`;
 };
 
 const formatDate = (dateString?: string) => {
@@ -108,11 +111,26 @@ const getFileType = (filename: string): string => {
 };
 
 export default function DriveFileGrid({ files, onFileAction }: DriveFileGridProps) {
-  const handleAction = (action: string, file: DriveFileItem) => {
-    onFileAction?.(action, file);
+  const [localFiles, setLocalFiles] = React.useState(files);
+
+  React.useEffect(() => {
+    setLocalFiles(files);
+  }, [files]);
+
+
+  const handleStar = (updatedFile: any) => {
+    setLocalFiles(prev => prev.map(f => (f.fileId === updatedFile.fileId ? { ...f, starred: updatedFile.starred } : f)));
   };
 
-  if (files.length === 0) {
+  const handleDelete = (deletedFile: any) => {
+    setLocalFiles(prev => prev.filter(f => f.fileId !== deletedFile.fileId));
+  };
+
+  const handleRename = (renamedFile: any) => {
+    setLocalFiles(prev => prev.map(f => (f.fileId === renamedFile.fileId ? { ...f, filename: renamedFile.filename } : f)));
+  };
+
+  if (localFiles.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <FileText className="w-16 h-16 text-gray-600 mb-4" />
@@ -123,153 +141,95 @@ export default function DriveFileGrid({ files, onFileAction }: DriveFileGridProp
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4 w-full max-w-full overflow-hidden">
       {files.map((file) => {
         const fileType = getFileType(file.filename);
         const FileIcon = getFileIcon(fileType);
         const iconColor = getFileColor(fileType);
+        const uniqueKey = `${file.fileId || file.id}-${file.filename}`;
+
+        // Prefer size_mb if available, fallback to file.size
+        const fileSize = typeof file.size_mb === 'number' ? file.size_mb : file.size;
+
+        // Map DriveFileItem to RecentFile
+        const recentFile = {
+          id: typeof file.id === 'number' ? file.id : 0,
+          name: file.filename || '',
+          type: getFileType(file.filename) as any,
+          size: typeof file.size_mb === 'number' ? `${file.size_mb} MB` : (typeof file.size === 'string' ? file.size : (file.size ? String(file.size) : '0 MB')),
+          modified: file.modified || '',
+          opened: '',
+          shared: file.permission !== 'owner',
+          starred: !!file.starred,
+          folder: file.path || '',
+          owner: file.username || '',
+          fileId: file.fileId,
+          filename: file.filename,
+        };
 
         return (
-          <ContextMenu key={file.id}>
-            <ContextMenuTrigger>
-              <div className="group relative bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 hover:bg-zinc-800/50 hover:border-zinc-700 transition-all duration-200 cursor-pointer">
-                {/* File Icon */}
-                <div className="flex items-center justify-between mb-3">
-                  <div className={`p-2 rounded-lg bg-zinc-800/50 ${iconColor}`}>
-                    <FileIcon className="w-6 h-6" />
-                  </div>
-                  
-                  {/* More Actions */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0 text-gray-400 hover:text-white"
-                      >
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="bg-zinc-800 border-zinc-700">
-                      <DropdownMenuItem
-                        onClick={() => handleAction('view', file)}
-                        className="text-white hover:bg-zinc-700"
-                      >
-                        <Eye className="w-4 h-4 mr-2" />
-                        View
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleAction('download', file)}
-                        className="text-white hover:bg-zinc-700"
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        Download
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleAction('share', file)}
-                        className="text-white hover:bg-zinc-700"
-                      >
-                        <Share2 className="w-4 h-4 mr-2" />
-                        Share
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleAction('rename', file)}
-                        className="text-white hover:bg-zinc-700"
-                      >
-                        <Edit3 className="w-4 h-4 mr-2" />
-                        Rename
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator className="bg-zinc-700" />
-                      <DropdownMenuItem
-                        onClick={() => handleAction('delete', file)}
-                        className="text-red-400 hover:bg-zinc-700 hover:text-red-300"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-
-                {/* File Info */}
-                <div className="space-y-2">
-                  <h3 className="text-white font-medium text-sm line-clamp-2 leading-tight">
-                    {file.filename}
-                  </h3>
-                  
-                  <div className="flex items-center justify-between text-xs text-gray-400">
-                    <span>{getFileExtension(file.filename)}</span>
-                    <span>{formatFileSize(file.filename)}</span>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <Clock className="w-3 h-3" />
-                    <span>{formatDate(file.modified)}</span>
-                  </div>
-
-                  {/* Permission Badge */}
-                  <div className="flex items-center justify-between">
-                    <Badge 
-                      variant={file.permission === 'owner' ? 'default' : 'secondary'}
-                      className={`text-xs ${
-                        file.permission === 'owner' 
-                          ? 'bg-blue-600/20 text-blue-400 border-blue-600/30' 
-                          : 'bg-gray-600/20 text-gray-400 border-gray-600/30'
-                      }`}
-                    >
-                      {file.permission === 'owner' ? 'Owned' : 'Shared'}
-                    </Badge>
-                    
-                    {file.permission !== 'owner' && (
-                      <div className="flex items-center text-xs text-gray-500">
-                        <Users className="w-3 h-3 mr-1" />
-                        <span>{file.username}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Path */}
-                  {file.path && file.path !== '/home' && (
-                    <div className="text-xs text-gray-500 truncate">
-                      📁 {file.path}
-                    </div>
-                  )}
+          <div key={uniqueKey} className="group relative bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 hover:bg-zinc-800/50 hover:border-zinc-700 transition-all duration-200 cursor-pointer min-w-0 w-full">
+            {/* File Icon */}
+            <div className="flex items-center mb-3">
+              <div className="flex items-center gap-2">
+                <div className={`p-2 rounded-lg bg-zinc-800/50 ${iconColor}`}>
+                  <FileIcon className="w-6 h-6" />
                 </div>
               </div>
-            </ContextMenuTrigger>
-            
-            <ContextMenuContent className="bg-zinc-800 border-zinc-700">
-              <ContextMenuItem
-                onClick={() => handleAction('view', file)}
-                className="text-white hover:bg-zinc-700"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                View
-              </ContextMenuItem>
-              <ContextMenuItem
-                onClick={() => handleAction('download', file)}
-                className="text-white hover:bg-zinc-700"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Download
-              </ContextMenuItem>
-              <ContextMenuItem
-                onClick={() => handleAction('share', file)}
-                className="text-white hover:bg-zinc-700"
-              >
-                <Share2 className="w-4 h-4 mr-2" />
-                Share
-              </ContextMenuItem>
-              <ContextMenuSeparator className="bg-zinc-700" />
-              <ContextMenuItem
-                onClick={() => handleAction('delete', file)}
-                className="text-red-400 hover:bg-zinc-700 hover:text-red-300"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Move to Trash
-              </ContextMenuItem>
-            </ContextMenuContent>
-          </ContextMenu>
+              {/* RecentFileDropdown integration */}
+              <RecentFileDropdown 
+                file={recentFile} 
+                onStar={handleStar} 
+                onDelete={handleDelete} 
+                onRename={handleRename}
+                triggerClassName="absolute top-2 right-2 sm:top-2 sm:right-2 md:top-3 md:right-3 lg:top-4 lg:right-4 p-1 rounded-full hover:bg-zinc-700 focus:outline-none" 
+              />
+            </div>
+            {/* File Info */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <h3 className="text-white font-medium text-sm line-clamp-2 leading-tight flex-1">
+                  {file.filename}
+                </h3>
+                {file.starred && (
+                  <Star className="w-4 h-4 fill-yellow-400 text-yellow-400 flex-shrink-0" />
+                )}
+              </div>
+              <div className="flex items-center justify-between text-xs text-gray-400">
+                <span>{getFileExtension(file.filename)}</span>
+                <span>{displayFileSize(fileSize)}</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <Clock className="w-3 h-3" />
+                <span>{formatDate(file.modified)}</span>
+              </div>
+              {/* Permission Badge */}
+              <div className="flex items-center justify-between">
+                <Badge 
+                  variant={file.permission === 'owner' ? 'default' : 'secondary'}
+                  className={`text-xs ${
+                    file.permission === 'owner' 
+                      ? 'bg-blue-600/20 text-blue-400 border-blue-600/30' 
+                      : 'bg-gray-600/20 text-gray-400 border-gray-600/30'
+                  }`}
+                >
+                  {file.permission === 'owner' ? 'Owned' : 'Shared'}
+                </Badge>
+                {file.permission !== 'owner' && (
+                  <div className="flex items-center text-xs text-gray-500">
+                    <Users className="w-3 h-3 mr-1" />
+                    <span>{file.username}</span>
+                  </div>
+                )}
+              </div>
+              {/* Path */}
+              {file.path && file.path !== '/home' && (
+                <div className="text-xs text-gray-500 truncate">
+                  📁 {file.path}
+                </div>
+              )}
+            </div>
+          </div>
         );
       })}
     </div>

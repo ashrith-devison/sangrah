@@ -2,6 +2,7 @@
 
 import { useEffect, type ReactNode } from 'react';
 import { StoreProvider, initializeStores } from '@/stores';
+import { Toaster } from '@/components/ui/sonner';
 
 interface ClientProvidersProps {
   children: ReactNode;
@@ -19,6 +20,7 @@ export function ClientProviders({ children }: ClientProvidersProps) {
   return (
     <StoreProvider>
       {children}
+      <Toaster />
     </StoreProvider>
   );
 }

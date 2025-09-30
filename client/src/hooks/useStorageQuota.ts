@@ -52,9 +52,9 @@ export const useStorageQuota = () => {
   // Helper functions for storage calculations
   const formatStorage = (mb: number): string => {
     if (mb >= 1024) {
-      return `${(mb / 1024).toFixed(1)}GB`;
+      return `${(mb / 1024).toFixed(2)}GB`;
     }
-    return `${mb.toFixed(0)}MB`;
+    return `${mb.toFixed(2)}MB`;
   };
 
   const getStoragePercentage = (usedMB: number, totalMB: number = 10): number => {
@@ -67,15 +67,16 @@ export const useStorageQuota = () => {
     const totalMB = 10; // 10MB total storage
     const usedMB = Math.max(0, storageData.usedMB || 0); // Ensure non-negative
     const percentage = Math.min(100, getStoragePercentage(usedMB, totalMB)); // Cap at 100%
-    
+
+    // Always return double with two decimals for MB values
     return {
-      used: formatStorage(usedMB),
-      total: formatStorage(totalMB),
+      used: usedMB.toFixed(2),
+      total: totalMB.toFixed(2),
       percentage,
       usedMB,
       totalMB,
       remainingMB: Math.max(0, totalMB - usedMB),
-      remaining: formatStorage(Math.max(0, totalMB - usedMB))
+      remaining: (totalMB - usedMB).toFixed(2)
     };
   };
 

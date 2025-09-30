@@ -1,16 +1,72 @@
 package repos
 
 import (
-	"backend/src/dto"
 	"database/sql"
 	"fmt"
 	"os"
 	"strings"
 )
 
+// GetPublicSharedCount returns the number of files shared in public for a user
+func (r *FileCrudRepo) GetPublicSharedCount(username string) (int, error) {
+	var count int
+	err := r.Db.QueryRow(`SELECT COUNT(*) FROM user_files WHERE username = $1 AND is_public = true`, username).Scan(&count)
+	return count, err
+}
+
+// GetDownloadCount returns the total download count for user's owned files
+func (r *FileCrudRepo) GetDownloadCount(username string) (int, error) {
+	var count int
+	err := r.Db.QueryRow(`SELECT COALESCE(SUM(download_count), 0) FROM user_files WHERE username = $1 AND permission = 'owner'`, username).Scan(&count)
+	return count, err
+}
+
+// GetOwnedFileCount returns the number of files owned by a user
+func (r *FileCrudRepo) GetOwnedFileCount(username string) (int, error) {
+	var count int
+	err := r.Db.QueryRow(`SELECT COUNT(*) FROM user_files WHERE username = $1 AND permission = 'owner'`, username).Scan(&count)
+	return count, err
+}
+
+// GetDuplicateFileCount returns the number of duplicate files for a user (same hash, multiple filenames)
+func (r *FileCrudRepo) GetDuplicateFileCount(username string) (int, error) {
+	rows, err := r.Db.Query(`SELECT COUNT(*) FROM (SELECT file_id FROM user_files WHERE username = $1 GROUP BY file_id HAVING COUNT(*) > 1) AS dup`, username)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	var count int
+	if rows.Next() {
+		rows.Scan(&count)
+	}
+	return count, nil
+}
+
+// GetLargeFileCount returns the number of large files (>10MB) for a user
+func (r *FileCrudRepo) GetLargeFileCount(username string) (int, error) {
+	var count int
+	err := r.Db.QueryRow(`SELECT COUNT(*) FROM user_files uf JOIN file_metadata fm ON uf.file_id = fm.sha256 WHERE uf.username = $1 AND fm.file_size > 10*1024*1024`, username).Scan(&count)
+	return count, err
+}
+
+// GetStarredFileCount returns the number of starred files for a user
+func (r *FileCrudRepo) GetStarredFileCount(username string) (int, error) {
+	var count int
+	err := r.Db.QueryRow(`SELECT COUNT(*) FROM user_file_info WHERE username = $1 AND starred = true`, username).Scan(&count)
+	return count, err
+}
+
 // IncrementDownloadCount increments the download_count for a file in user_files
 func (r *FileCrudRepo) IncrementDownloadCount(fileId string) error {
+	fmt.Printf("Incrementing download count for fileId: %s\n", fileId)
+	dot := strings.LastIndex(fileId, ".")
+	if dot > 0 {
+		fileId = fileId[:dot]
+	}
 	_, err := r.Db.Exec("UPDATE user_files SET download_count = download_count + 1 WHERE file_id = $1", fileId)
+	if err != nil {
+		fmt.Printf("Error incrementing download count for fileId %s: %v\n", fileId, err)
+	}
 	return err
 }
 
@@ -92,27 +148,22 @@ func (r *FileCrudRepo) InsertUserFile(username, fileId, filename, permission str
 	return err
 }
 
-// User CRUD
-
-func (r *AuthRepo) GetUser(username string) (dto.User, error) {
-	// ...implementation...
-	return dto.User{}, nil
-}
-
-func (r *AuthRepo) UpdateUser(username string, req dto.UserUpdateRequest) error {
-	// ...implementation...
-	return nil
-}
-
-func (r *AuthRepo) DeleteUser(username string) error {
-	// ...implementation...
-	return nil
-}
-
-// File CRUD
-
 type FileCrudRepo struct {
 	Db *sql.DB
+}
+
+// GetFilesUploadedLast24h returns the number of files uploaded by user in last 24 hours
+func (r *FileCrudRepo) GetFilesUploadedLast24h(username string) (int, error) {
+	var count int
+	err := r.Db.QueryRow(`SELECT COUNT(*) FROM user_file_info WHERE username = $1 AND upload_time >= NOW() - INTERVAL '1 day'`, username).Scan(&count)
+	return count, err
+}
+
+// GetFilesUploadedLastWeek returns the number of files uploaded by user in last 7 days
+func (r *FileCrudRepo) GetFilesUploadedLastWeek(username string) (int, error) {
+	var count int
+	err := r.Db.QueryRow(`SELECT COUNT(*) FROM user_file_info WHERE username = $1 AND upload_time >= NOW() - INTERVAL '7 day'`, username).Scan(&count)
+	return count, err
 }
 
 // GetFilePathByUsernameAndFilename returns the file path for a given username and filename

@@ -45,7 +45,7 @@ const navigationItems = [
     title: 'Recent Files',
     url: '/user/recent',
     icon: Clock,
-    badge: '12',
+    badge: 'new',
   },
   {
     title: 'Upload',
@@ -56,7 +56,7 @@ const navigationItems = [
     title: 'Shared Files',
     url: '/user/shared',
     icon: UsersRound,
-    badge: '5',
+    badge: 'new',
   },
   {
     title: 'Starred',
@@ -78,7 +78,7 @@ const otherItems = [
     title: 'Trash',
     url: '/user/trash',
     icon: Trash2,
-    badge: '3',
+    badge: 'soon',
   },
 ];
 
@@ -244,9 +244,9 @@ const UserSideBarContent = () => {
               ) : error ? (
                 <span className="text-red-400">Error</span>
               ) : storageStats ? (
-                `${storageStats.used} / ${storageStats.total}`
+                `${isNaN(Number(storageStats.used)) ? '0.00' : Number(storageStats.used).toFixed(2)}MB / ${isNaN(Number(storageStats.total)) ? '10.00' : Number(storageStats.total).toFixed(2)}MB`
               ) : (
-                '0MB / 10MB'
+                '0.00MB / 10.00MB'
               )}
             </span>
           </div>

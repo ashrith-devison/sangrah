@@ -73,8 +73,15 @@ func (fs *FileService) GetFileByPath(path string) (dto.FileMeta, error) {
 	}
 	// If not found, fallback to direct file existence
 	if _, err := os.Stat(path); err == nil {
-		// Return minimal meta if file exists but not tracked
-		return dto.FileMeta{Path: path, Filename: filepath.Base(path)}, nil
+		// Try to look up SHA256 from DB using filename
+		db, dbErr := utils.ConnectPostgres()
+		var sha256 string
+		if dbErr == nil {
+			defer db.Close()
+			// Try to get hash for any user (if you want to restrict, pass username)
+			db.QueryRow("SELECT file_id FROM user_files WHERE filename = $1 LIMIT 1", filepath.Base(path)).Scan(&sha256)
+		}
+		return dto.FileMeta{Path: path, Filename: filepath.Base(path), SHA256: sha256}, nil
 	}
 	return dto.FileMeta{}, http.ErrMissingFile
 }

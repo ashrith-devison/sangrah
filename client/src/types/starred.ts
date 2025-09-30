@@ -1,3 +1,34 @@
+// API Response Types
+export interface ApiStarredFile {
+  filename: string;
+  id: number;
+  permission: string;
+  sha_file_id: string;
+  starred: boolean;
+  tags: string;
+  upload_time: string;
+  username: string;
+}
+
+export interface ApiStarredFilesResponse {
+  status: string;
+  message: string;
+  data: ApiStarredFile[];
+}
+
+// API Update Types
+export interface UpdateFileInfoRequest {
+  username: string;
+  filename: string;
+  starred: boolean;
+}
+
+export interface UpdateFileInfoResponse {
+  status: string;
+  message: string;
+}
+
+// UI Types
 export interface StarredItem {
   id: string;
   name: string;
@@ -10,6 +41,8 @@ export interface StarredItem {
   isShared: boolean;
   path: string;
   thumbnail?: string;
+  shaFileId?: string;
+  tags?: string;
 }
 
 export interface StarredFilterOption {
@@ -52,5 +85,5 @@ export interface StarredEmptyStateProps {
 }
 
 export interface StarredFilesViewProps {
-  items: StarredItem[];
+  items?: StarredItem[];
 }

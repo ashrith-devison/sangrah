@@ -36,7 +36,7 @@ export default function SharedFilesView({ sharedWithMe, sharedByMe }: SharedFile
   const [activeTab, setActiveTab] = useState<SharedTab>('shared-with-me');
 
   const getCurrentData = () => {
-    return activeTab === 'shared-with-me' ? sharedWithMe : sharedByMe;
+  return (activeTab === 'shared-with-me' ? sharedWithMe : sharedByMe) ?? [];
   };
 
   const filteredItems = getCurrentData()
@@ -113,6 +113,7 @@ export default function SharedFilesView({ sharedWithMe, sharedByMe }: SharedFile
             <SharedEmptyState 
               searchQuery={searchQuery} 
               activeTab={activeTab} 
+              filterType={filterType}
             />
           ) : viewMode === 'grid' ? (
             <SharedItemGrid items={filteredItems} />

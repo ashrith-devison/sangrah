@@ -7,27 +7,17 @@ import {
   Video,
   Music,
   Archive,
-  Download,
-  Share2,
-  Trash2,
-  Eye,
+
   Clock,
-  Users,
   File,
-  MoreVertical,
   ChevronUp,
   ChevronDown,
-  Edit3,
+
+  Star,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { RecentFileDropdown } from './RecentFileDropdown';
+
 import { DriveFileItem } from '@/types/drive';
 
 interface DriveFileListProps {
@@ -112,8 +102,26 @@ export default function DriveFileList({
   onSort, 
   onFileAction 
 }: DriveFileListProps) {
+  const [localFiles, setLocalFiles] = React.useState(files);
+
+  React.useEffect(() => {
+    setLocalFiles(files);
+  }, [files]);
+
   const handleAction = (action: string, file: DriveFileItem) => {
     onFileAction?.(action, file);
+  };
+
+  const handleStar = (updatedFile: any) => {
+    setLocalFiles(prev => prev.map(f => (f.fileId === updatedFile.fileId ? { ...f, starred: updatedFile.starred } : f)));
+  };
+
+  const handleDelete = (deletedFile: any) => {
+    setLocalFiles(prev => prev.filter(f => f.fileId !== deletedFile.fileId));
+  };
+
+  const handleRename = (renamedFile: any) => {
+    setLocalFiles(prev => prev.map(f => (f.fileId === renamedFile.fileId ? { ...f, filename: renamedFile.filename } : f)));
   };
 
   const handleSort = (column: 'name' | 'modified' | 'size' | 'type') => {
@@ -125,7 +133,7 @@ export default function DriveFileList({
     return sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />;
   };
 
-  if (files.length === 0) {
+  if (localFiles.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <FileText className="w-16 h-16 text-gray-600 mb-4" />
@@ -172,16 +180,34 @@ export default function DriveFileList({
       </div>
 
       {/* File Rows */}
-      <div className="divide-y divide-zinc-800">
+      <div className="divide-y divide-zinc-800 overflow-hidden">
         {files.map((file) => {
           const fileType = getFileType(file.filename);
           const FileIcon = getFileIcon(fileType);
           const iconColor = getFileColor(fileType);
+          // Create a unique key combining fileId and filename to avoid duplicates
+          const uniqueKey = `${file.fileId || file.id}-${file.filename}`;
+
+          // Map DriveFileItem to RecentFile as currentfile
+          const currentfile = {
+            id: typeof file.id === 'number' ? file.id : 0,
+            name: file.filename || '',
+            type: getFileType(file.filename) as any,
+            size: formatFileSize(file.filename),
+            modified: file.modified || '',
+            opened: '',
+            shared: file.permission !== 'owner',
+            starred: !!file.starred,
+            folder: file.path || '',
+            owner: file.username || '',
+            fileId: file.fileId,
+            filename: file.filename,
+          };
 
           return (
             <div 
-              key={file.id} 
-              className="grid grid-cols-12 gap-2 sm:gap-4 p-3 sm:p-4 hover:bg-zinc-800/30 transition-colors cursor-pointer group"
+              key={uniqueKey} 
+              className="grid grid-cols-12 gap-2 sm:gap-4 p-3 sm:p-4 hover:bg-zinc-800/30 transition-colors cursor-pointer group min-w-0 relative"
               onClick={() => handleAction('view', file)}
             >
               {/* File Name */}
@@ -191,109 +217,65 @@ export default function DriveFileList({
                     <FileIcon className="w-3 h-3 sm:w-4 sm:h-4" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-white font-medium truncate text-sm sm:text-base">{file.filename}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-white font-medium truncate text-sm sm:text-base">{file.filename}</div>
+                      {file.starred && (
+                        <Star className="w-4 h-4 fill-yellow-400 text-yellow-400 flex-shrink-0" />
+                      )}
+                    </div>
                     <div className="text-xs text-gray-500 truncate hidden sm:block">
                       {file.path && file.path !== '/home' && `📁 ${file.path}`}
                     </div>
-                  </div>
                 </div>
-              </div>
-              
-              {/* Type */}
-              <div className="col-span-2 hidden sm:flex items-center">
-                <Badge 
-                  variant="outline" 
-                  className="bg-zinc-800/50 border-zinc-700 text-gray-300"
-                >
-                  {fileType}
-                </Badge>
-              </div>
-              
-              {/* Size */}
-              <div className="col-span-2 hidden md:flex items-center text-gray-400">
-                {formatFileSize(file.filename)}
-              </div>
-              
-              {/* Modified */}
-              <div className="col-span-2 hidden lg:flex items-center text-gray-400">
-                <div className="flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {formatDate(file.modified)}
-                </div>
-              </div>
-              
-              {/* Owner */}
-              <div className="col-span-2 hidden xl:flex items-center">
-                <Badge 
-                  variant={file.permission === 'owner' ? 'default' : 'secondary'}
-                  className={`text-xs ${
-                    file.permission === 'owner' 
-                      ? 'bg-blue-600/20 text-blue-400 border-blue-600/30' 
-                      : 'bg-gray-600/20 text-gray-400 border-gray-600/30'
-                  }`}
-                >
-                  {file.permission === 'owner' ? 'You' : file.username}
-                </Badge>
-              </div>
-              
-              {/* Actions */}
-              <div 
-                className="col-span-1 flex items-center justify-end"
-                onClick={(e: React.MouseEvent) => e.stopPropagation()}
-              >
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-gray-400 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <MoreVertical className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="bg-zinc-800 border-zinc-700">
-                    <DropdownMenuItem
-                      onClick={() => handleAction('view', file)}
-                      className="text-white hover:bg-zinc-700"
-                    >
-                      <Eye className="w-4 h-4 mr-2" />
-                      View
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleAction('download', file)}
-                      className="text-white hover:bg-zinc-700"
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Download
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleAction('share', file)}
-                      className="text-white hover:bg-zinc-700"
-                    >
-                      <Share2 className="w-4 h-4 mr-2" />
-                      Share
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleAction('rename', file)}
-                      className="text-white hover:bg-zinc-700"
-                    >
-                      <Edit3 className="w-4 h-4 mr-2" />
-                      Rename
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator className="bg-zinc-700" />
-                    <DropdownMenuItem
-                      onClick={() => handleAction('delete', file)}
-                      className="text-red-400 hover:bg-zinc-700 hover:text-red-300"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </div>
             </div>
-          );
-        })}
+            
+            {/* Type */}
+            <div className="col-span-2 hidden sm:flex items-center">
+              <Badge 
+                variant="outline" 
+                className="bg-zinc-800/50 border-zinc-700 text-gray-300"
+              >
+                {fileType}
+              </Badge>
+            </div>
+          
+            {/* Size */}
+            <div className="col-span-2 hidden md:flex items-center text-gray-400">
+              {formatFileSize(file.filename)}
+            </div>
+          
+            {/* Modified */}
+            <div className="col-span-2 hidden lg:flex items-center text-gray-400">
+              <div className="flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                {formatDate(file.modified)}
+                <RecentFileDropdown 
+                  file={currentfile} 
+                  onStar={handleStar} 
+                  onDelete={handleDelete} 
+                  onRename={handleRename}
+                  triggerClassName="opacity-100 flex items-center text-white ml-2" 
+                />
+              </div>
+            </div>
+          
+            {/* Owner */}
+            <div className="col-span-2 hidden xl:flex items-center">
+              <Badge 
+                variant={file.permission === 'owner' ? 'default' : 'secondary'}
+                className={`text-xs ${
+                  file.permission === 'owner' 
+                    ? 'bg-blue-600/20 text-blue-400 border-blue-600/30' 
+                    : 'bg-gray-600/20 text-gray-400 border-gray-600/30'
+                }`}
+              >
+                {file.permission === 'owner' ? 'You' : file.username}
+              </Badge>
+            </div>
+          </div>
+        );
+      })}
       </div>
     </div>
   );

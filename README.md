@@ -1,9 +1,27 @@
-
-
 # 🚀 MyDrive File Vault System
 
+
+**Access the deployed application here:**
+
+- **Frontend (Vercel):** [https://filevault-cap.vercel.app/](https://filevault-cap.vercel.app/)
+- **Backend (Render):** [https://vit-2026-capstone-internship-hiring-task-jkaj.onrender.com/](https://vit-2026-capstone-internship-hiring-task-jkaj.onrender.com/)
+- **API Docs:** [https://vit-2026-capstone-internship-hiring-task-jkaj.onrender.com/api/docs/](https://vit-2026-capstone-internship-hiring-task-jkaj.onrender.com/api/docs/)
+
+## 🚀 Live Demo
+
+```mermaid
+%% Mermaid flowchart to highlight Live Demo URLs
+flowchart TD
+  A[Frontend\nVercel]:::frontend -->|"https://filevault-cap.vercel.app/"| B[Live App]
+  C[Backend\nRender]:::backend -->|"https://vit-2026-capstone-internship-hiring-task-jkaj.onrender.com/"| B
+  D[API Docs]:::docs -->|"/api/docs/"| B
+  classDef frontend fill:#6e73fa,stroke:#fff,stroke-width:2px,color:#fff;
+  classDef backend fill:#00bfae,stroke:#fff,stroke-width:2px,color:#fff;
+  classDef docs fill:#ffb347,stroke:#fff,stroke-width:2px,color:#fff;
+```
+
 <div align="center">
-  <img src="https://via.placeholder.com/400x120/6e73fa/ffffff?text=MyDrive+File+Vault" alt="MyDrive Logo" />
+  <img src="https://undraw.co/api/illustrations/svg?search=cloud&color=6e73fa" alt="Cloud Storage Illustration" height="120" />
   <br>
   <b>Modern, secure, and scalable cloud storage with advanced file management</b>
   <br>
@@ -12,6 +30,22 @@
   <b>📧 Email: ashrithsai.devison@gmail.com</b>
   <br>
   <a href="./client/">Frontend Docs</a> • <a href="./server/">Backend Docs</a> • <a href="#-quick-start">Quick Start</a> • <a href="#-contributing">Contributing</a>
+</div>
+
+---
+
+<div align="center">
+
+# Login Credentials
+
+**Admin Login:**  
+Email: `admin@gmail.com`  
+Password: `Admin@123`
+
+**User Login:**  
+Email: `user@gmail.com`  
+Password: `User@12345`
+
 </div>
 
 ---
@@ -43,10 +77,23 @@
 
 ### 🚀 Docker Setup (Recommended)
 ```bash
+# 1. Clone the repository
 git clone <repository-url>
-cd filevault-backend
+cd vit-2026-capstone-internship-hiring-task-ashrith-devison
+
+# 2. Build and start Docker containers
 docker compose build
 docker compose up -d
+
+# 3. Set up the database
+cd server/data
+cat migrations.sql  # Copy the content of this file
+
+# 4. Connect to PostgreSQL and run migrations
+docker exec -it filevault-postgres psql -U filevault -d filevaultdb
+# Paste the copied SQL content from migrations.sql and press Enter
+
+# 5. Access the application
 # Frontend: http://localhost:3000
 # Backend: http://localhost:8080
 # Swagger Docs: http://localhost:8080/api/docs/
@@ -129,9 +176,10 @@ NEXT_PUBLIC_APP_VERSION=1.0.0
 ---
 
 ## 📚 Documentation
+
 - [Frontend Docs](./client/README.md)
 - [Backend Docs](./server/README.md)
-- [API Docs](http://localhost:8080/api/docs/)
+- [API Docs (Local)](http://localhost:8080/api/docs/) | [API Docs (Production)](https://vit-2026-capstone-internship-hiring-task-jkaj.onrender.com/api/docs/)
 - [Contributing Guide](./CONTRIBUTING.md)
 - [Deployment Guide](./DEPLOYMENT.md)
 
