@@ -10,6 +10,88 @@ type FileShareRepo struct {
 	db *sql.DB
 }
 
+// Returns files shared with the user (not owned)
+func (r *FileShareRepo) GetFilesSharedWith(username string) ([]map[string]interface{}, error) {
+	query := `SELECT id, username, file_id, filename, path, permission, shared_with, shared_by, is_public, download_count, created_at FROM user_files WHERE username = $1 AND shared_by != '' AND permission != 'owner'`
+	rows, err := r.db.Query(query, username)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var files []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var uname, fileId, filename, permission, sharedWith, sharedBy string
+		var path sql.NullString
+		var isPublic bool
+		var downloadCount int
+		var createdAt string
+		if err := rows.Scan(&id, &uname, &fileId, &filename, &path, &permission, &sharedWith, &sharedBy, &isPublic, &downloadCount, &createdAt); err != nil {
+			return nil, err
+		}
+		files = append(files, map[string]interface{}{
+			"id":       id,
+			"username": uname,
+			"fileId":   fileId,
+			"filename": filename,
+			"path": func() string {
+				if path.Valid {
+					return path.String
+				}
+				return ""
+			}(),
+			"permission":    permission,
+			"sharedWith":    sharedWith,
+			"sharedBy":      sharedBy,
+			"isPublic":      isPublic,
+			"downloadCount": downloadCount,
+			"createdAt":     createdAt,
+		})
+	}
+	return files, nil
+}
+
+// Returns files shared by the user (not owned)
+func (r *FileShareRepo) GetFilesSharedBy(username string) ([]map[string]interface{}, error) {
+	query := `SELECT id, username, file_id, filename, path, permission, shared_with, shared_by, is_public, download_count, created_at FROM user_files WHERE shared_by = $1 AND permission != 'owner'`
+	rows, err := r.db.Query(query, username)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var files []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var uname, fileId, filename, permission, sharedWith, sharedBy string
+		var path sql.NullString
+		var isPublic bool
+		var downloadCount int
+		var createdAt string
+		if err := rows.Scan(&id, &uname, &fileId, &filename, &path, &permission, &sharedWith, &sharedBy, &isPublic, &downloadCount, &createdAt); err != nil {
+			return nil, err
+		}
+		files = append(files, map[string]interface{}{
+			"id":       id,
+			"username": uname,
+			"fileId":   fileId,
+			"filename": filename,
+			"path": func() string {
+				if path.Valid {
+					return path.String
+				}
+				return ""
+			}(),
+			"permission":    permission,
+			"sharedWith":    sharedWith,
+			"sharedBy":      sharedBy,
+			"isPublic":      isPublic,
+			"downloadCount": downloadCount,
+			"createdAt":     createdAt,
+		})
+	}
+	return files, nil
+}
+
 type FileShareRepository interface {
 	ShareFile(owner, recipient string, fileId string, permission string) error
 	ListSharedFiles(username string) ([]dto.UserFile, error)
@@ -90,4 +172,11 @@ func (r *FileShareRepo) GetFileMetaByToken(token string) (dto.FileMeta, error) {
 		return dto.FileMeta{}, err
 	}
 	return meta, nil
+}
+
+// Checks if a file is already shared with a recipient by the owner
+func (r *FileShareRepo) IsFileAlreadyShared(fileId, recipient, owner string) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM user_files WHERE file_id = $1 AND username = $2 AND shared_by = $3 AND permission = 'read')`, fileId, recipient, owner).Scan(&exists)
+	return exists, err
 }

@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { SharedItem, SharedFilterOption, SharedSortOption, SharedTab } from '@/types/shared';
+import api from '@/lib/api';
+import { useUserStore } from '@/stores/userStore';
 import { ViewMode } from '@/types/home';
 import SharedTabs from './SharedTabs';
 import SharedFilterDropdown from './SharedFilterDropdown';
@@ -15,8 +17,8 @@ import SharedItemList from './SharedItemList';
 import SharedEmptyState from './SharedEmptyState';
 
 interface SharedFilesViewProps {
-  sharedWithMe: SharedItem[];
-  sharedByMe: SharedItem[];
+  sharedWithMe?: SharedItem[];
+  sharedByMe?: SharedItem[];
 }
 
 const filterOptions: SharedFilterOption[] = [
@@ -28,20 +30,43 @@ const filterOptions: SharedFilterOption[] = [
   { value: 'video', label: 'Videos' },
 ];
 
-export default function SharedFilesView({ sharedWithMe, sharedByMe }: SharedFilesViewProps) {
+export default function SharedFilesView({ sharedWithMe = [], sharedByMe = [] }: SharedFilesViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SharedSortOption>('shared');
   const [filterType, setFilterType] = useState('all');
   const [activeTab, setActiveTab] = useState<SharedTab>('shared-with-me');
+  const [sharedWithMeState, setSharedWithMeState] = useState<SharedItem[]>(sharedWithMe);
+  const [sharedByMeState] = useState<SharedItem[]>(sharedByMe);
+
+  // Get username from Zustand or localStorage
+  const user = useUserStore(state => state.user);
+  const username = user?.username || (typeof window !== 'undefined' ? localStorage.getItem('username') : '');
+
+  useEffect(() => {
+    // Only fetch if username exists
+    if (!username) return;
+    api.get(`/v1/file/shared-with-me?username=${encodeURIComponent(username)}`)
+      .then(res => {
+        if (res.data && res.data.status === 'success' && Array.isArray(res.data.data)) {
+          setSharedWithMeState(res.data.data);
+        }
+      })
+      .catch(() => {
+        // Optionally handle error
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [username]);
 
   const getCurrentData = () => {
-  return (activeTab === 'shared-with-me' ? sharedWithMe : sharedByMe) ?? [];
+    return (activeTab === 'shared-with-me' ? sharedWithMeState : sharedByMeState) ?? [];
   };
 
   const filteredItems = getCurrentData()
     .filter(item => {
-      const matchesSearch = item.name
+      if (!item) return false;
+      const displayName = item.filename || item.name || '';
+      const matchesSearch = displayName
         .toLowerCase()
         .includes(searchQuery.toLowerCase());
       const matchesType =
@@ -52,13 +77,15 @@ export default function SharedFilesView({ sharedWithMe, sharedByMe }: SharedFile
       return matchesSearch && matchesType;
     })
     .sort((a, b) => {
+      const aName = a.filename || a.name || '';
+      const bName = b.filename || b.name || '';
       switch (sortBy) {
         case 'name':
-          return a.name.localeCompare(b.name);
+          return aName.localeCompare(bName);
         case 'size':
           return parseFloat(a.size) - parseFloat(b.size);
         case 'permissions':
-          return a.permissions.localeCompare(b.permissions);
+          return (a.permissions || '').localeCompare(b.permissions || '');
         default: // shared
           return (
             new Date(b.sharedDate).getTime() - new Date(a.sharedDate).getTime()
@@ -66,14 +93,16 @@ export default function SharedFilesView({ sharedWithMe, sharedByMe }: SharedFile
       }
     });
 
+  // ...existing render code...
+
   return (
     <TooltipProvider>
       {/* Tab Navigation */}
       <SharedTabs
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        sharedWithMeCount={sharedWithMe.length}
-        sharedByMeCount={sharedByMe.length}
+        sharedWithMeCount={sharedWithMeState.length}
+        sharedByMeCount={sharedByMeState.length}
       />
 
       {/* Controls Section */}

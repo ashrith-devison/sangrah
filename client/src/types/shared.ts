@@ -1,6 +1,7 @@
 export interface SharedItem {
   id: string;
   name: string;
+  filename?: string; // for backend compatibility
   type: 'file' | 'folder';
   fileType?: string;
   size: string;

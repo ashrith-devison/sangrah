@@ -123,12 +123,16 @@ func CoreUpload(file io.ReadSeeker, filename string, r *http.Request) (string, s
 		return "", "", "", "", err
 	}
 	var ext string
+	ext = filepath.Ext(filename) // fallback to original extension
 	if filetype == "image/jpeg" {
 		ext = ".jpg"
 	} else {
 		exts, err := mime.ExtensionsByType(filetype)
 		if err == nil && len(exts) > 0 {
 			ext = exts[0]
+		}
+		if ext == "" {
+			ext = filepath.Ext(filename) // fallback to original extension
 		}
 	}
 	filePath := filepath.Join("storage", hashSum+ext)

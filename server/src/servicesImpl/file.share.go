@@ -16,6 +16,16 @@ type FileShareService struct {
 	repo *repos.FileShareRepo
 }
 
+// Returns files shared with the user (not owned)
+func (s *FileShareService) GetFilesSharedWith(username string) ([]map[string]interface{}, error) {
+	return s.repo.GetFilesSharedWith(username)
+}
+
+// Returns files shared by the user (not owned)
+func (s *FileShareService) GetFilesSharedBy(username string) ([]map[string]interface{}, error) {
+	return s.repo.GetFilesSharedBy(username)
+}
+
 func NewFileShareService(cfg *config.Config) *FileShareService {
 	db, err := utils.ConnectPostgresWithConfig(cfg)
 	if err != nil {
@@ -47,6 +57,11 @@ func NewPublicShareService(cfg *config.Config) *PublicShareService {
 }
 func (s *FileShareService) RevokeFileShare(owner string, fileId string, recipient string) error {
 	return s.repo.RevokeFileShare(owner, fileId, recipient)
+}
+
+// Checks if a file is already shared with a recipient by the owner
+func (s *FileShareService) IsFileAlreadyShared(fileId, recipient, owner string) (bool, error) {
+	return s.repo.IsFileAlreadyShared(fileId, recipient, owner)
 }
 
 // --- Public Share Service ---

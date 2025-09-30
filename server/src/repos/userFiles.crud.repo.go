@@ -7,6 +7,13 @@ import (
 	"strings"
 )
 
+// Checks if a user exists by username
+func (r *FileCrudRepo) UserExists(username string) (bool, error) {
+	var exists bool
+	err := r.Db.QueryRow(`SELECT EXISTS(SELECT 1 FROM users WHERE username = $1)`, username).Scan(&exists)
+	return exists, err
+}
+
 // GetPublicSharedCount returns the number of files shared in public for a user
 func (r *FileCrudRepo) GetPublicSharedCount(username string) (int, error) {
 	var count int
@@ -28,18 +35,16 @@ func (r *FileCrudRepo) GetOwnedFileCount(username string) (int, error) {
 	return count, err
 }
 
-// GetDuplicateFileCount returns the number of duplicate files for a user (same hash, multiple filenames)
+// GetDuplicateFileCount returns the total number of duplicate files for a user (sum of (count-1) for each file_id with count > 1)
 func (r *FileCrudRepo) GetDuplicateFileCount(username string) (int, error) {
-	rows, err := r.Db.Query(`SELECT COUNT(*) FROM (SELECT file_id FROM user_files WHERE username = $1 GROUP BY file_id HAVING COUNT(*) > 1) AS dup`, username)
-	if err != nil {
-		return 0, err
-	}
-	defer rows.Close()
-	var count int
-	if rows.Next() {
-		rows.Scan(&count)
-	}
-	return count, nil
+       var count int
+       err := r.Db.QueryRow(`
+	       SELECT COALESCE(SUM(cnt - 1), 0) FROM (
+		       SELECT COUNT(*) as cnt FROM user_files WHERE username = $1 GROUP BY file_id HAVING COUNT(*) > 1
+	       ) AS sub
+       `, username).Scan(&count)
+       fmt.Printf("[DEBUG] GetDuplicateFileCount: username=%s, duplicate_count=%d, err=%v\n", username, count, err)
+       return count, err
 }
 
 // GetLargeFileCount returns the number of large files (>10MB) for a user
@@ -152,17 +157,17 @@ type FileCrudRepo struct {
 	Db *sql.DB
 }
 
-// GetFilesUploadedLast24h returns the number of files uploaded by user in last 24 hours
+// GetFilesUploadedLast24h returns the number of files uploaded by user in last 24 hours (based on user_files.created_at)
 func (r *FileCrudRepo) GetFilesUploadedLast24h(username string) (int, error) {
 	var count int
-	err := r.Db.QueryRow(`SELECT COUNT(*) FROM user_file_info WHERE username = $1 AND upload_time >= NOW() - INTERVAL '1 day'`, username).Scan(&count)
+	err := r.Db.QueryRow(`SELECT COUNT(*) FROM user_files WHERE username = $1 AND created_at >= NOW() - INTERVAL '1 day'`, username).Scan(&count)
 	return count, err
 }
 
-// GetFilesUploadedLastWeek returns the number of files uploaded by user in last 7 days
+// GetFilesUploadedLastWeek returns the number of files uploaded by user in last 7 days (based on user_files.created_at)
 func (r *FileCrudRepo) GetFilesUploadedLastWeek(username string) (int, error) {
 	var count int
-	err := r.Db.QueryRow(`SELECT COUNT(*) FROM user_file_info WHERE username = $1 AND upload_time >= NOW() - INTERVAL '7 day'`, username).Scan(&count)
+	err := r.Db.QueryRow(`SELECT COUNT(*) FROM user_files WHERE username = $1 AND created_at >= NOW() - INTERVAL '7 day'`, username).Scan(&count)
 	return count, err
 }
 
