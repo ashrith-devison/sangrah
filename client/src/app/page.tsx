@@ -1,4 +1,6 @@
+"use client";
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Shield,
   Upload,
@@ -82,6 +84,7 @@ export default function Page() {
     { label: 'Uptime', value: '99.9%', subtext: 'Production reliability' },
   ];
 
+  const router = useRouter();
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black">
       {/* Navigation */}
@@ -140,9 +143,12 @@ export default function Page() {
               security controls.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <button className="group bg-gradient-to-r from-[#6e73fa] to-[#5e5e5e] hover:from-[#5e5e5e] hover:to-[#6e73fa] text-white px-8 py-4 rounded-xl font-medium text-lg transition-all duration-200 transform hover:scale-105 shadow-2xl shadow-[#6e73fa]/25 flex items-center">
+              <button
+                className="group bg-gradient-to-r from-[#6e73fa] to-[#5e5e5e] hover:from-[#5e5e5e] hover:to-[#6e73fa] text-white px-8 py-4 rounded-xl font-medium text-lg transition-all duration-200 transform hover:scale-105 shadow-2xl shadow-[#6e73fa]/25 flex items-center"
+                onClick={() => router.push('/login')}
+              >
                 <Play className="w-5 h-5 mr-2" />
-                View Live Demo
+                Login here 
                 <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
               </button>
               <button className="bg-zinc-800 hover:bg-zinc-700 text-white px-8 py-4 rounded-xl font-medium text-lg transition-all backdrop-blur-sm border border-zinc-700 flex items-center">

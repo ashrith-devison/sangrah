@@ -7,4 +7,6 @@ type AdminServiceInterface interface {
 	ShareFile(req dto.AdminShareRequest) (dto.FileShareResponse, error)
 	GetAllFiles() (dto.AdminFileListResponse, error)
 	GetUsageStats() (dto.AdminStatsResponse, error)
+	GetAllUsers() ([]map[string]interface{}, error)
+	GenerateUserToken(username string) (dto.AdminGenerateTokenResponse, error)
 }

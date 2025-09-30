@@ -35,6 +35,24 @@ func NewAdminService(db *sql.DB, fileService services.FileServiceInterface, file
 	}
 }
 
+// GetAllUsers retrieves all users for admin
+func (s *AdminService) GetAllUsers() ([]map[string]interface{}, error) {
+	return s.repo.GetAllUsers()
+}
+
+// GenerateUserToken allows admin to generate a JWT token for any user
+func (s *AdminService) GenerateUserToken(username string) (dto.AdminGenerateTokenResponse, error) {
+	email, isAdmin, err := s.repo.GetUserEmailAndAdmin(username)
+	if err != nil {
+		return dto.AdminGenerateTokenResponse{}, err
+	}
+	token, err := utils.GenerateJWT(username, email, isAdmin)
+	if err != nil {
+		return dto.AdminGenerateTokenResponse{}, err
+	}
+	return dto.AdminGenerateTokenResponse{Token: token, Username: username}, nil
+}
+
 func (s *AdminService) UploadFile(req dto.AdminFileUploadRequest) error {
 	// Store metadata
 	err := s.fileService.StoreFileMetadata(req.Filename, req.MIMEType, req.Hash, req.Path, req.Uploader)

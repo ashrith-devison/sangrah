@@ -96,3 +96,41 @@ func (r *AdminRepo) GetUsageStats() (dto.AdminStatsResponse, error) {
 	}
 	return stats, nil
 }
+
+// GetAllUsers retrieves all users for admin
+func (r *AdminRepo) GetAllUsers() ([]map[string]interface{}, error) {
+	rows, err := r.Db.Query("SELECT id, username, email, is_admin, created_at FROM users")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var users []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var username, email string
+		var isAdmin bool
+		var createdAt string
+		if err := rows.Scan(&id, &username, &email, &isAdmin, &createdAt); err != nil {
+			return nil, err
+		}
+		users = append(users, map[string]interface{}{
+			"id":        id,
+			"username":  username,
+			"email":     email,
+			"isAdmin":   isAdmin,
+			"createdAt": createdAt,
+		})
+	}
+	return users, nil
+}
+
+// GetUserEmailAndAdmin fetches email and is_admin for a username
+func (r *AdminRepo) GetUserEmailAndAdmin(username string) (string, bool, error) {
+	var email string
+	var isAdmin bool
+	err := r.Db.QueryRow("SELECT email, is_admin FROM users WHERE username = $1", username).Scan(&email, &isAdmin)
+	if err != nil {
+		return "", false, err
+	}
+	return email, isAdmin, nil
+}

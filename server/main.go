@@ -2,9 +2,12 @@ package main
 
 import (
 	"backend/src/config"
-	"backend/src/controllers"
+	"backend/src/controllers/admin"
+	"backend/src/controllers/auth"
+	"backend/src/controllers/files"
 	"backend/src/middleware"
 	"backend/src/routers"
+	"backend/src/servicesImpl"
 	"net/http"
 	"os"
 	"time"
@@ -30,8 +33,6 @@ func main() {
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
 
-	controllers.InitLogger(logger)
-
 	logger.Info("ENV", zap.String("PORT", os.Getenv("PORT")))
 	logger.Info("ENV", zap.String("DB_URL", os.Getenv("DB_URL")))
 	logger.Info("ENV", zap.String("RATE_LIMIT", os.Getenv("RATE_LIMIT")))
@@ -42,10 +43,11 @@ func main() {
 	}
 	logger.Info("Loaded DB_URL", zap.String("DB_URL", cfg.DBUrl))
 
-	controllers.InitAuthService(cfg)
-	controllers.InitFileShareService(cfg)
-	controllers.InitFileSearchService(cfg)
-	controllers.InitAdminService(cfg)
+	// Initialize services using new init.go functions
+	auth.InitAuthService(cfg)
+	files.InitFileServices(cfg)
+	// For admin, pass nil for DB for now, update if DB is initialized
+	admin.InitAdminService(nil, cfg, files.FileService, files.FileShareService.(*servicesImpl.FileShareService), files.FileCrudService)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -87,21 +89,9 @@ func main() {
 		Handler:      handler,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
-	}
-	if err := srv.ListenAndServe(); err != nil {
-		logger.Fatal("Server failed", zap.Error(err))
-	}
-
-	server := &http.Server{
-		Addr:         ":" + port,
-		Handler:      mux,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
-
-	logger.Info("Starting the Server", zap.String("port", port))
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		logger.Fatal("Could not listen", zap.String("port", port), zap.Error(err))
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		logger.Fatal("Server failed", zap.Error(err))
 	}
 }
