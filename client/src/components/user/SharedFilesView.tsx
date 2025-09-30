@@ -1,5 +1,4 @@
-'use client';
-
+"use client";
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -16,36 +15,34 @@ import SharedItemGrid from './SharedItemGrid';
 import SharedItemList from './SharedItemList';
 import SharedEmptyState from './SharedEmptyState';
 
-interface SharedFilesViewProps {
-  sharedWithMe?: SharedItem[];
-  sharedByMe?: SharedItem[];
-}
-
-const filterOptions: SharedFilterOption[] = [
-  { value: 'all', label: 'All Items' },
-  { value: 'files', label: 'Files Only' },
-  { value: 'folders', label: 'Folders Only' },
-  { value: 'document', label: 'Documents' },
-  { value: 'image', label: 'Images' },
-  { value: 'video', label: 'Videos' },
-];
-
-export default function SharedFilesView({ sharedWithMe = [], sharedByMe = [] }: SharedFilesViewProps) {
+export default function SharedFilesView() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [searchQuery, setSearchQuery] = useState('');
+  const filterOptions: SharedFilterOption[] = [
+    { value: 'all', label: 'All Items' },
+    { value: 'files', label: 'Files Only' },
+    { value: 'folders', label: 'Folders Only' },
+    { value: 'document', label: 'Documents' },
+    { value: 'image', label: 'Images' },
+    { value: 'video', label: 'Videos' },
+  ];
   const [sortBy, setSortBy] = useState<SharedSortOption>('shared');
   const [filterType, setFilterType] = useState('all');
   const [activeTab, setActiveTab] = useState<SharedTab>('shared-with-me');
-  const [sharedWithMeState, setSharedWithMeState] = useState<SharedItem[]>(sharedWithMe);
-  const [sharedByMeState] = useState<SharedItem[]>(sharedByMe);
+  const [sharedWithMeState, setSharedWithMeState] = useState<SharedItem[]>([]);
+  const [sharedByMeState] = useState<SharedItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Get username from Zustand or localStorage
   const user = useUserStore(state => state.user);
   const username = user?.username || (typeof window !== 'undefined' ? localStorage.getItem('username') : '');
 
   useEffect(() => {
-    // Only fetch if username exists
-    if (!username) return;
+    if (!username) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     api.get(`/v1/file/shared-with-me?username=${encodeURIComponent(username)}`)
       .then(res => {
         if (res.data && res.data.status === 'success' && Array.isArray(res.data.data)) {
@@ -54,7 +51,8 @@ export default function SharedFilesView({ sharedWithMe = [], sharedByMe = [] }: 
       })
       .catch(() => {
         // Optionally handle error
-      });
+      })
+      .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [username]);
 
@@ -138,16 +136,22 @@ export default function SharedFilesView({ sharedWithMe = [], sharedByMe = [] }: 
       {/* Shared Items Display */}
       <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-sm">
         <CardContent className="p-6">
-          {filteredItems.length === 0 ? (
+          {loading ? (
+            viewMode === 'grid' ? (
+              <SharedItemGrid items={[]} loading={true} />
+            ) : (
+              <SharedItemList items={[]} loading={true} />
+            )
+          ) : filteredItems.length === 0 ? (
             <SharedEmptyState 
               searchQuery={searchQuery} 
               activeTab={activeTab} 
               filterType={filterType}
             />
           ) : viewMode === 'grid' ? (
-            <SharedItemGrid items={filteredItems} />
+            <SharedItemGrid items={filteredItems} loading={false} />
           ) : (
-            <SharedItemList items={filteredItems} />
+            <SharedItemList items={filteredItems} loading={false} />
           )}
         </CardContent>
       </Card>
