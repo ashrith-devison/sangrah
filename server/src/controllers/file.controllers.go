@@ -322,6 +322,27 @@ func RenameFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 	fileCrudRepo := repos.FileCrudRepo{Db: db}
+
+	// Get file path using repo
+	filePath, err := fileCrudRepo.GetFilePathByUsernameAndFilename(req.Username, req.Filename)
+	if err != nil || filePath == "" {
+		utils.WriteAPIError(w, http.StatusNotFound, "File not found", "File not found for MIME validation")
+		return
+	}
+	// Open file and validate MIME type
+	f, err := os.Open(filePath)
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to open file for MIME validation", err.Error())
+		return
+	}
+	defer f.Close()
+	buffer := make([]byte, 512)
+	n, _ := f.Read(buffer)
+	if err := utils.ValidateMimeType(req.NewName, buffer[:n]); err != nil {
+		utils.WriteAPIError(w, http.StatusBadRequest, "MIME type mismatch", err.Error())
+		return
+	}
+
 	err = fileCrudRepo.RenameFileByFilename(req.Username, req.Filename, req.NewName)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -630,6 +651,20 @@ func ServeFileByPathHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
+
+	// Increment download_count in user_files for this file using repo
+	db2, err := utils.ConnectPostgres()
+	if err == nil {
+		defer db2.Close()
+		fileCrudRepo := repos.FileCrudRepo{Db: db2}
+		updateErr := fileCrudRepo.IncrementDownloadCount(fileMeta.SHA256)
+		if updateErr != nil {
+			logger.Error("Failed to increment download_count", zap.String("requestID", requestID), zap.String("file_id", fileMeta.SHA256), zap.Error(updateErr))
+		}
+	} else {
+		logger.Error("Failed to connect to DB for download_count update", zap.String("requestID", requestID), zap.Error(err))
+	}
+
 	logger.Info("Serving file", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("path", fileMeta.Path))
 	w.Header().Set("Content-Disposition", "attachment; filename="+filepath.Base(cleanPath))
 	w.Header().Set("Content-Type", "application/octet-stream")
@@ -761,6 +796,21 @@ func FileUploadHandler(w http.ResponseWriter, r *http.Request) {
 			uploadedFiles = append(uploadedFiles, map[string]interface{}{
 				"filename": handler.Filename,
 				"error":    "Storage quota exceeded",
+			})
+			continue
+		}
+		// Read first 512 bytes for MIME validation
+		buffer := make([]byte, 512)
+		n, _ := file.Read(buffer)
+		if seeker, ok := file.(io.Seeker); ok {
+			seeker.Seek(0, io.SeekStart)
+		}
+		// Validate MIME type using utility
+		if err := utils.ValidateMimeType(handler.Filename, buffer[:n]); err != nil {
+			logger.Error("MIME type mismatch", zap.String("requestID", requestID), zap.String("filename", handler.Filename), zap.Error(err))
+			uploadedFiles = append(uploadedFiles, map[string]interface{}{
+				"filename": handler.Filename,
+				"error":    err.Error(),
 			})
 			continue
 		}
