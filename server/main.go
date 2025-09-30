@@ -17,8 +17,13 @@ import (
 )
 
 func main() {
-	if err := godotenv.Load("F:/New folder/fileVault/server/.env"); err != nil {
-		panic("Failed to load .env file: " + err.Error())
+	// Try to load .env, then .env.production, else error
+	err := godotenv.Load(".env")
+	if err != nil {
+		err = godotenv.Load(".env.production")
+		if err != nil {
+			panic("Failed to load .env or .env.production file: " + err.Error())
+		}
 	}
 	println("[DEBUG] PORT after loading .env:", os.Getenv("PORT"))
 
