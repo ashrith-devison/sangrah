@@ -21,6 +21,7 @@ import { RecentFileDropdown } from './RecentFileDropdown';
 
 interface SharedItemGridProps {
   items: SharedItem[];
+  loading?: boolean;
 }
 
 const getFileIcon = (item: SharedItem) => {
@@ -129,7 +130,29 @@ const getPermissionBadge = (permission: string, item: SharedItem) => {
   }
 };
 
-export default function SharedItemGrid({ items }: SharedItemGridProps) {
+export default function SharedItemGrid({ items, loading = false }: SharedItemGridProps) {
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[200px]">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" className="animate-spin mb-3">
+          <circle cx="20" cy="20" r="18" stroke="#6e73fa" strokeWidth="4" strokeDasharray="90 60"/>
+        </svg>
+        <span className="text-white text-base">Loading files...</span>
+      </div>
+    );
+  }
+
+  if (!items || items.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[200px]">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" className="mb-3">
+          <circle cx="20" cy="20" r="18" stroke="#6e73fa" strokeWidth="4" strokeDasharray="90 60"/>
+        </svg>
+        <span className="text-white text-base">No files found</span>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-4">
       {items.map(item => {

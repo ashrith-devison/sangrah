@@ -25,6 +25,7 @@ import { FileItem } from '@/types/home';
 
 interface FileListProps {
   files: FileItem[];
+  loading?: boolean;
 }
 
 const getFileIcon = (type: string) => {
@@ -64,7 +65,29 @@ const getFileColor = (type: string) => {
   }
 };
 
-export default function FileList({ files }: FileListProps) {
+export default function FileList({ files, loading = false }: FileListProps) {
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[200px]">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" className="animate-spin mb-3">
+          <circle cx="20" cy="20" r="18" stroke="#6e73fa" strokeWidth="4" strokeDasharray="90 60"/>
+        </svg>
+        <span className="text-white text-base">Loading files...</span>
+      </div>
+    );
+  }
+
+  if (!files || files.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[200px]">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" className="mb-3">
+          <circle cx="20" cy="20" r="18" stroke="#6e73fa" strokeWidth="4" strokeDasharray="90 60"/>
+        </svg>
+        <span className="text-white text-base">No files found</span>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-2">
       {files.map(file => {
