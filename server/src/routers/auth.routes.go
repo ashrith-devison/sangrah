@@ -3,7 +3,7 @@ package routers
 import (
 	"net/http"
 
-	"backend/src/controllers"
+	"backend/src/controllers/auth"
 )
 
 //
@@ -17,7 +17,7 @@ import (
 //  @Router       /auth/forget-password [post]
 
 func RegisterAuthRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/login", controllers.LoginHandler)       // POST /login
-	mux.HandleFunc("/register", controllers.RegisterHandler) // POST /register
-	// mux.HandleFunc("/forget-password", controllers.ForgetPasswordHandler) // POST /forget-password
+	mux.HandleFunc("/login", auth.LoginHandler)       // POST /login
+	mux.HandleFunc("/register", auth.RegisterHandler) // POST /register
+	// mux.HandleFunc("/forget-password", auth.ForgetPasswordHandler) // POST /forget-password
 }

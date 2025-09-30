@@ -1,20 +1,77 @@
-package controllers
+package files
 
 import (
 	"backend/src/dto"
-	servicesImpl "backend/src/servicesImpl"
+	"backend/src/utils"
+	"database/sql"
 	"encoding/json"
 	"net/http"
-
-	"backend/src/config"
 
 	"go.uber.org/zap"
 )
 
-var fileShareService *servicesImpl.FileShareService
+// Use shared FileShareService and logger from init.go
 
-func InitFileShareService(cfg *config.Config) {
-	fileShareService = servicesImpl.NewFileShareService(cfg)
+// SharedWithMeHandler returns files shared with the user by others
+// @Summary List files shared with user
+// @Description Returns files where shared_with = username and permission != 'owner'
+// @Tags file
+// @Produce json
+// @Param username query string true "Username to list files shared with"
+// @Success 200 {array} dto.UserFile "List of files shared with user"
+// @Failure 400 {object} utils.APIError "Missing username"
+// @Failure 500 {object} utils.APIError "Internal server error"
+// @Router /api/v1/file/shared-with-me [get]
+func SharedWithMeHandler(w http.ResponseWriter, r *http.Request) {
+	username := r.URL.Query().Get("username")
+	if username == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username required")
+		return
+	}
+	db, err := utils.ConnectPostgres()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
+		return
+	}
+	defer db.Close()
+	rows, err := db.Query(`SELECT id, username, file_id, filename, path, permission, shared_with, shared_by, is_public, download_count, created_at FROM user_files WHERE username = $1 AND shared_by != '' AND permission != 'owner'`, username)
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to fetch shared files", err.Error())
+		return
+	}
+	defer rows.Close()
+	var files []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var uname, fileId, filename, permission, sharedWith, sharedBy string
+		var path sql.NullString
+		var isPublic bool
+		var downloadCount int
+		var createdAt string
+		if err := rows.Scan(&id, &uname, &fileId, &filename, &path, &permission, &sharedWith, &sharedBy, &isPublic, &downloadCount, &createdAt); err != nil {
+			utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to scan row", err.Error())
+			return
+		}
+		files = append(files, map[string]interface{}{
+			"id":       id,
+			"username": uname,
+			"fileId":   fileId,
+			"filename": filename,
+			"path": func() string {
+				if path.Valid {
+					return path.String
+				}
+				return ""
+			}(),
+			"permission":    permission,
+			"sharedWith":    sharedWith,
+			"sharedBy":      sharedBy,
+			"isPublic":      isPublic,
+			"downloadCount": downloadCount,
+			"createdAt":     createdAt,
+		})
+	}
+	utils.WriteAPIResponse(w, http.StatusOK, "Files shared with user fetched", files)
 }
 
 // ShareFileHandler handles sharing a file with another user
@@ -31,14 +88,14 @@ func InitFileShareService(cfg *config.Config) {
 func ShareFileHandler(w http.ResponseWriter, r *http.Request) {
 	var req dto.FileShareRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		logger.Error("Invalid share request", zap.Error(err))
+		FileLogger.Error("Invalid share request", zap.Error(err))
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(dto.FileShareResponse{Success: false, Message: "Invalid request"})
 		return
 	}
-	resp, err := fileShareService.ShareFile(req)
+	resp, err := FileShareService.ShareFile(req)
 	if err != nil {
-		logger.Error("Share file failed", zap.Error(err))
+		FileLogger.Error("Share file failed", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(resp)
 		return
@@ -58,9 +115,9 @@ func ShareFileHandler(w http.ResponseWriter, r *http.Request) {
 // @Router /api/v1/file/shared/list [get]
 func ListSharedFilesHandler(w http.ResponseWriter, r *http.Request) {
 	username := r.URL.Query().Get("username")
-	files, err := fileShareService.ListSharedFiles(username)
+	files, err := FileShareService.ListSharedFiles(username)
 	if err != nil {
-		logger.Error("List shared files failed", zap.Error(err))
+		FileLogger.Error("List shared files failed", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode([]dto.UserFile{})
 		return
@@ -83,14 +140,14 @@ func ListSharedFilesHandler(w http.ResponseWriter, r *http.Request) {
 func RevokeFileShareHandler(w http.ResponseWriter, r *http.Request) {
 	var req dto.FileShareRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		logger.Error("Invalid revoke request", zap.Error(err))
+		FileLogger.Error("Invalid revoke request", zap.Error(err))
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(dto.FileShareResponse{Success: false, Message: "Invalid request"})
 		return
 	}
-	err := fileShareService.RevokeFileShare(req.Owner, req.FileID, req.Recipient)
+	err := FileShareService.RevokeFileShare(req.Owner, req.FileID, req.Recipient)
 	if err != nil {
-		logger.Error("Revoke file share failed", zap.Error(err))
+		FileLogger.Error("Revoke file share failed", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(dto.FileShareResponse{Success: false, Message: err.Error()})
 		return

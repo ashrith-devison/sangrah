@@ -7,6 +7,19 @@ import api from '@/lib/api';
 
 export default function DriveStatsFromApi() {
   const { user } = useAuth();
+  // Get username from Zustand, fallback to localStorage
+  let username = user?.username || user?.email || '';
+  if (!username && typeof window !== 'undefined') {
+    try {
+      const userStore = localStorage.getItem('user-store');
+      if (userStore) {
+        const parsed = JSON.parse(userStore);
+        username = parsed?.state?.user?.email || parsed?.state?.user?.name || '';
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
   const [stats, setStats] = useState<any>(null);
   const [statsRaw, setStatsRaw] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -16,8 +29,6 @@ export default function DriveStatsFromApi() {
     async function fetchStats() {
       setLoading(true);
       try {
-        // Get username from Zustand auth context
-  const username = user?.username || '';
         if (!username) {
           setError('No username found');
           setLoading(false);
@@ -89,6 +100,13 @@ export default function DriveStatsFromApi() {
             </tr>
           </thead>
           <tbody>
+              <tr className="bg-zinc-900/60">
+                <td className="p-2 sm:p-3 font-medium text-white flex items-center gap-2 whitespace-nowrap">
+                  <Badge variant="default" className="bg-blue-600/20 text-blue-400 border-blue-600/30">Owner</Badge>
+                  <span className="truncate">Username</span>
+                </td>
+                <td className="p-2 sm:p-3 text-base font-bold text-blue-400 whitespace-nowrap">{username || 'Unknown'}</td>
+              </tr>
             {[
               { label: 'Downloads So Far', value: statsRaw?.download_count, icon: <Download className="text-violet-400" size={20} />, highlight: true },
               { label: 'Duplicate Files', value: statsRaw?.duplicate_files, icon: <Copy className="text-pink-400" size={20} /> },
