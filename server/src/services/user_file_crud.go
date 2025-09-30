@@ -12,4 +12,5 @@ type FileCrudServiceInterface interface {
 	RenameFile(req dto.FileRenameRequest) error
 	DeleteFile(req dto.DeleteFileRequest) error
 	InsertUserFile(username, fileId, filename, permission string) error
+	UserExists(username string) (bool, error)
 }

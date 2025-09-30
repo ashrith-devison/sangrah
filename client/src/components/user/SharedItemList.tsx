@@ -26,6 +26,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import { RecentFileDropdown } from './RecentFileDropdown';
 import { SharedItem } from '@/types/shared';
 
 interface SharedItemListProps {
@@ -103,14 +104,7 @@ const getPermissionBadge = (permission: string) => {
         </Badge>
       );
     default:
-      return (
-        <Badge
-          variant="outline"
-          className="border-gray-500 text-gray-400 text-xs"
-        >
-          Unknown
-        </Badge>
-      );
+      return null;
   }
 };
 
@@ -138,9 +132,9 @@ export default function SharedItemList({ items }: SharedItemListProps) {
                     <div className="flex items-center gap-2">
                       <p
                         className="text-white font-medium text-sm sm:text-base truncate"
-                        title={item.name}
+                        title={item.filename || item.name}
                       >
-                        {item.name}
+                        {item.filename || item.name}
                       </p>
                       {item.starred && (
                         <Star className="w-3 h-3 text-yellow-400 fill-current flex-shrink-0" />
@@ -164,43 +158,38 @@ export default function SharedItemList({ items }: SharedItemListProps) {
                 </div>
                 <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
                   {getPermissionBadge(item.permissions)}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 sm:p-2"
-                  >
-                    <MoreHorizontal className="w-4 h-4" />
-                  </Button>
+                  <RecentFileDropdown
+                    file={{
+                      id: typeof item.id === 'string' ? parseInt(item.id, 10) || 0 : item.id,
+                      name: item.filename || item.name || '',
+                      type: (
+                        item.fileType === 'document' ||
+                        item.fileType === 'presentation' ||
+                        item.fileType === 'image' ||
+                        item.fileType === 'video' ||
+                        item.fileType === 'audio' ||
+                        item.fileType === 'archive' ||
+                        item.fileType === 'design'
+                      ) ? (item.fileType as any) : 'document',
+                      size: item.size || '',
+                      modified: item.shared || '',
+                      opened: item.shared || '',
+                      shared: true,
+                      starred: !!item.starred,
+                      folder: '',
+                      owner: item.sharedBy || '',
+                      filename: item.filename || item.name || '',
+                      fileId: (item as any).fileId || item.id,
+                    }}
+                    onStar={() => {}}
+                    onDelete={() => {}}
+                    actions={['view', 'download','openInNewTab']}
+                    triggerClassName="!text-zinc-700 !dark:text-zinc-100 !opacity-100"
+                  />
                 </div>
               </div>
             </ContextMenuTrigger>
-            <ContextMenuContent className="bg-zinc-800 border-zinc-700">
-              <ContextMenuItem className="text-white hover:bg-zinc-700">
-                <Eye className="w-4 h-4 mr-2" />
-                Preview
-              </ContextMenuItem>
-              <ContextMenuItem className="text-white hover:bg-zinc-700">
-                <Download className="w-4 h-4 mr-2" />
-                Download
-              </ContextMenuItem>
-              <ContextMenuItem className="text-white hover:bg-zinc-700">
-                <Share2 className="w-4 h-4 mr-2" />
-                Share
-              </ContextMenuItem>
-              <ContextMenuItem className="text-white hover:bg-zinc-700">
-                <Copy className="w-4 h-4 mr-2" />
-                Copy Link
-              </ContextMenuItem>
-              <ContextMenuSeparator className="bg-zinc-700" />
-              <ContextMenuItem className="text-white hover:bg-zinc-700">
-                <Settings className="w-4 h-4 mr-2" />
-                Manage Access
-              </ContextMenuItem>
-              <ContextMenuItem className="text-red-400 hover:bg-zinc-700">
-                <Trash2 className="w-4 h-4 mr-2" />
-                Remove Access
-              </ContextMenuItem>
-            </ContextMenuContent>
+            {/* Remove dropdown from context menu, now handled by visible trigger */}
           </ContextMenu>
         );
       })}

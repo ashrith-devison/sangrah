@@ -39,15 +39,6 @@ func (s *UserFileCrudService) InsertUserFile(username, fileId, filename, permiss
 	return s.Repo.InsertUserFile(username, fileId, filename, permission)
 }
 
-// User CRUD
-func (s *UserFileCrudService) GetUser(username string) (dto.User, error) {
-	return dto.User{}, nil // Placeholder for removed functionality
-}
-
-func (s *UserFileCrudService) UpdateUser(username string, req dto.UserUpdateRequest) error {
-	return nil // Placeholder for removed functionality
-}
-
-func (s *UserFileCrudService) DeleteUser(username string) error {
-	return nil // Placeholder for removed functionality
+func (s *UserFileCrudService) UserExists(username string) (bool, error) {
+	return s.Repo.UserExists(username)
 }

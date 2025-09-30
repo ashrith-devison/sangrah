@@ -5,6 +5,7 @@ import (
 	"backend/src/utils"
 	"net/http"
 	"os"
+	"strings"
 )
 
 // GetUserStorageQuotaHandler returns the storage quota used by a user
@@ -106,9 +107,9 @@ func AnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} utils.APIError "Internal server error"
 // @Router /api/v1/file/stats [get]
 func UserStatsHandler(w http.ResponseWriter, r *http.Request) {
-	username := r.URL.Query().Get("username")
-	if username == "" {
-		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username required")
+	usernameOrEmail := r.URL.Query().Get("username")
+	if usernameOrEmail == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username or email required")
 		return
 	}
 	db, err := utils.ConnectPostgres()
@@ -117,6 +118,17 @@ func UserStatsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer db.Close()
+	var username string
+	// If input contains '@', treat as email and look up username
+	if strings.Contains(usernameOrEmail, "@") {
+		err := db.QueryRow("SELECT username FROM users WHERE email = $1", usernameOrEmail).Scan(&username)
+		if err != nil {
+			utils.WriteAPIError(w, http.StatusBadRequest, "Invalid email", "No user found for this email")
+			return
+		}
+	} else {
+		username = usernameOrEmail
+	}
 	fileCrudRepo := repos.FileCrudRepo{Db: db}
 
 	// Number of files shared in public
