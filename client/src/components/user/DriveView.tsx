@@ -1,19 +1,22 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { DriveFileItem } from '@/types/drive';
-import DriveStats from './DriveStats';
 import DriveFileGrid from './DriveFileGrid';
 import DriveFileList from './DriveFileList';
 import DriveBreadcrumb from './DriveBreadcrumb';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileX, AlertCircle, Grid3X3, List, Search, HardDrive, FolderPlus, Upload, X, Edit3, Music, Download, FileIcon, Eye, Link, Copy, Check } from 'lucide-react';
+import { FileX, AlertCircle, Grid3X3, List, Search, HardDrive, FolderPlus, Upload, X, Edit3, Music, Download, FileIcon, Eye, Link, Copy, Check, ExternalLink } from 'lucide-react';
+import { Filter } from 'lucide-react';
+import AdvancedSearchFilter from './AdvancedSearchFilter';
 import { Input } from '@/components/ui/input';
 
 import api from '@/lib/api';
 import { useAuth } from '@/stores/hooks';
+import { useFileStore } from '@/stores';
+import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 
 type ViewMode = 'grid' | 'list';
@@ -25,13 +28,91 @@ interface DriveViewProps {
 }
 
 export default function DriveView({ initialFiles = [], loading = false, error = null }: DriveViewProps) {
+  const [searchResults, setSearchResults] = useState<DriveFileItem[] | null>(null);
+  // Map API response to DriveFileItem
+  function mapApiToDriveFileItem(apiFile: any): DriveFileItem {
+    return {
+      id: apiFile.referenceID || apiFile.filename,
+      filename: apiFile.filename,
+      fileId: apiFile.referenceID || apiFile.filename,
+      path: apiFile.path || '/',
+      permission: 'owner',
+      username: apiFile.uploader || '',
+      type: apiFile.mimeType?.includes('image') ? 'image'
+        : apiFile.mimeType?.includes('video') ? 'video'
+        : apiFile.mimeType?.includes('audio') ? 'audio'
+        : apiFile.mimeType?.includes('pdf') ? 'document' : 'other',
+      size: apiFile.fileSize ? `${(apiFile.fileSize / 1024 / 1024).toFixed(2)} MB` : '0 MB',
+      modified: apiFile.uploadDate || new Date().toISOString(),
+      starred: false,
+    };
+  }
+  const handleAdvancedSearch = (results: any[]) => {
+    setSearchResults(results.map(mapApiToDriveFileItem));
+    toast.info('Advanced search applied', { icon: '🔍' });
+    setShowAdvancedSearch(false);
+  };
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
   const { user } = useAuth();
-  const [files, setFiles] = useState<DriveFileItem[]>(initialFiles);
-  const [filteredFiles, setFilteredFiles] = useState<DriveFileItem[]>(initialFiles);
+  
+  // Use file store for data and operations
+  const { 
+    files: storeFiles, 
+    isLoading: storeLoading, 
+    fetchDriveFiles,
+    toggleStar 
+  } = useFileStore();
+
+
+  
+  // Transform store files to DriveFileItem format
+  const formatFileSize = (sizeMb: number) => {
+    if (sizeMb < 0.01) {
+      return `${Math.round(sizeMb * 1024)} KB`;
+    }
+    return `${sizeMb.toFixed(2)} MB`;
+  };
+
+  const files: DriveFileItem[] = storeFiles.map(file => ({
+    id: file.id,
+    filename: file.name,
+    fileId: file.fileId || file.id,
+    path: file.path || '/',
+    modified: file.dateModified || file.updatedAt || new Date().toISOString(),
+    username: file.username || user?.name || '',
+    permission: file.permission as any || 'owner',
+    starred: file.isStarred,
+  size: formatFileSize(file.size_mb ?? 0),
+    type: file.type === 'folder' ? undefined : 
+          file.mimeType?.includes('image') ? 'image' :
+          file.mimeType?.includes('video') ? 'video' :
+          file.mimeType?.includes('audio') ? 'audio' :
+          file.mimeType?.includes('pdf') ? 'document' : 'other'
+  }));
+
+  // Create stable fetchFiles function
+  const fetchFiles = useCallback(async () => {
+    if (!user?.name) return;
+    try {
+      await fetchDriveFiles(user.name);
+    } catch (err) {
+      console.error('Error fetching files:', err);
+    }
+  }, [user?.name, fetchDriveFiles]);
+
+  // Initial fetch on mount - use a ref to prevent infinite loops
+  const hasFetched = useRef(false);
+  
+  useEffect(() => {
+    if (user?.name && !hasFetched.current) {
+      hasFetched.current = true;
+      fetchDriveFiles(user.name).catch(console.error);
+    }
+  }, [user?.name]); // Remove fetchDriveFiles from dependencies
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPath, setCurrentPath] = useState('/');
-  const [isLoading, setIsLoading] = useState(loading);
+  const isLoading = storeLoading;
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadTargetPath, setUploadTargetPath] = useState('');
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
@@ -39,95 +120,28 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
   const [isUploading, setIsUploading] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
-  const [renameModalOpen, setRenameModalOpen] = useState(false);
-  const [fileToRename, setFileToRename] = useState<DriveFileItem | null>(null);
-  const [newFileName, setNewFileName] = useState('');
-  const [previewModalOpen, setPreviewModalOpen] = useState(false);
-  const [fileToPreview, setFileToPreview] = useState<DriveFileItem | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string>('');
-  const [shareModalOpen, setShareModalOpen] = useState(false);
-  const [fileToShare, setFileToShare] = useState<DriveFileItem | null>(null);
-  const [publicLink, setPublicLink] = useState<string>('');
-  const [shareToken, setShareToken] = useState<string>('');
-  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
-  const [linkCopied, setLinkCopied] = useState(false);
 
-  // Mock stats - in real app, this would come from API
-  const mockStats = {
-    totalFiles: files.length,
-    recentFiles: files.filter(f => {
-      const fileDate = new Date(f.modified);
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      return fileDate > sevenDaysAgo;
-    }).length,
-    sharedFiles: files.filter(f => f.permission === 'shared').length,
-    starredFiles: files.filter(f => f.starred || false).length,
-    storageUsed: 2.5 * 1024 * 1024 * 1024, // 2.5 GB
-    storageTotal: 10 * 1024 * 1024 * 1024, // 10 GB
-    fileTypes: {
-      documents: files.filter(f => ['pdf', 'doc', 'docx', 'txt'].includes(getFileExtension(f.filename))).length,
-      images: files.filter(f => ['jpg', 'jpeg', 'png', 'gif', 'bmp'].includes(getFileExtension(f.filename))).length,
-      videos: files.filter(f => ['mp4', 'avi', 'mov', 'wmv'].includes(getFileExtension(f.filename))).length,
-      audio: files.filter(f => ['mp3', 'wav', 'flac', 'aac'].includes(getFileExtension(f.filename))).length,
-      archives: files.filter(f => ['zip', 'rar', '7z', 'tar'].includes(getFileExtension(f.filename))).length,
-      others: files.filter(f => !['pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'mp4', 'avi', 'mov', 'wmv', 'mp3', 'wav', 'flac', 'aac', 'zip', 'rar', '7z', 'tar'].includes(getFileExtension(f.filename))).length,
-    }
-  };
-
-  function getFileExtension(filename: string): string {
-    return filename.split('.').pop()?.toLowerCase() || '';
-  }
-
-  // Filter files based on search and current directory
-  useEffect(() => {
-    let result = [...files];
-
-    // Filter by current path/directory - show files that are exactly in this directory
-    if (currentPath === '/') {
-      // Root level: show files that are in root OR show top-level directories
-      result = result.filter(file => {
-        // For root, we want to see files in subdirectories to create folder structure
-        return file.path.startsWith('/');
-      });
-    } else {
-      // Specific directory: show only files exactly in this path
-      result = result.filter(file => file.path === currentPath);
-    }
-
-    // Apply search filter
-    if (searchQuery) {
-      result = result.filter(file =>
-        file.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        file.path.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    setFilteredFiles(result);
-  }, [files, searchQuery, currentPath]);
 
   // Get unique directories for navigation
   const getDirectories = () => {
-    const allPaths = files.map(file => file.path);
+    const allPaths = files.map(file => file.path || '');
     const uniquePaths = [...new Set(allPaths)];
     
     // Get all possible directory levels from current path
     const directories: Array<{name: string, path: string, isSubdirectory: boolean}> = [];
     
     uniquePaths.forEach(fullPath => {
+      if (!fullPath) return;
       // Skip if it's the current path
       if (fullPath === currentPath) return;
-      
       // Check if this path is a subdirectory of current path
-      if (fullPath.startsWith(currentPath) && fullPath !== currentPath) {
+      if (typeof fullPath === 'string' && fullPath.startsWith(currentPath) && fullPath !== currentPath) {
         // Get the immediate subdirectory name
         const relativePath = fullPath.substring(currentPath.length);
         const pathParts = relativePath.split('/').filter(part => part.length > 0);
-        
         if (pathParts.length > 0) {
           const immediateSubdir = pathParts[0];
           const subdirPath = currentPath === '/' ? `/${immediateSubdir}` : `${currentPath}/${immediateSubdir}`;
-          
           // Only add if not already in directories
           if (!directories.find(dir => dir.path === subdirPath)) {
             directories.push({
@@ -155,65 +169,8 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
     return directories.filter(dir => dir.isSubdirectory);
   };
 
-  // Load files from API
-  useEffect(() => {
-    const loadFiles = async () => {
-      if (initialFiles.length > 0) return;
-      if (!user?.name) return; // Wait for user to be loaded
-      
-      setIsLoading(true);
-      try {
-        const response = await api.get(`/v1/file/owned?username=${user.name}`);
-        
-        console.log('API Response:', response.data); // Debug log
-        
-        // Handle different possible response structures
-        let filesData = [];
-        if (response.data && response.data.status === 'success' && Array.isArray(response.data.data)) {
-          filesData = response.data.data;
-        } else if (Array.isArray(response.data)) {
-          filesData = response.data;
-        } else if (response.data && Array.isArray(response.data.files)) {
-          filesData = response.data.files;
-        } else {
-          console.warn('Unexpected API response structure:', response.data);
-          filesData = [];
-        }
-        
-        // Transform API response to match our DriveFileItem interface
-        const apiFiles: DriveFileItem[] = filesData.map((file: any) => ({
-          id: file.id || file.fileId || Math.random().toString(),
-          filename: file.filename || file.name || 'Unknown File',
-          path: file.path || '/home',
-          modified: file.modified || file.updatedAt || new Date().toISOString(),
-          fileId: file.fileId || file.id || '',
-          username: file.username || user.name || '',
-          permission: file.permission || 'owner',
-          starred: file.starred || false
-        }));
-        
-        setFiles(apiFiles);
-      } catch (err: any) {
-        console.error('Error loading files:', err);
-        console.error('Error details:', {
-          message: err.message,
-          response: err.response?.data,
-          status: err.response?.status
-        });
-        
-        // Set empty array on error to prevent UI issues
-        setFiles([]);
-        
-        // You can add error handling here, e.g., show a toast notification
-      } finally {
-        setIsLoading(false);
-      }
-    };
 
-    loadFiles();
-  }, [initialFiles.length, user?.name]);
-
-  // Upload functionality
+  // Remove a file from the uploadFiles array by index
   const handleFolderClick = (folderPath: string) => {
     setUploadTargetPath(folderPath);
     setUploadModalOpen(true);
@@ -266,25 +223,8 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
         });
       }
 
-      // Refresh files after upload
-      const response = await api.get(`/v1/file/owned?username=${user.name}`);
-      let filesData = [];
-      if (response.data && response.data.status === 'success' && Array.isArray(response.data.data)) {
-        filesData = response.data.data;
-      }
-      
-      const apiFiles: DriveFileItem[] = filesData.map((file: any) => ({
-        id: file.id || file.fileId || Math.random().toString(),
-        filename: file.filename || file.name || 'Unknown File',
-        path: file.path || '/home',
-        modified: file.modified || file.updatedAt || new Date().toISOString(),
-        fileId: file.fileId || file.id || '',
-        username: file.username || user.name || '',
-        permission: file.permission || 'owner',
-        starred: file.starred || false
-      }));
-      
-      setFiles(apiFiles);
+      // Refresh files after upload using the function that preserves starred data
+      await fetchFiles();
       setUploadModalOpen(false);
       setUploadFiles([]);
       setIsCreatingFolder(false);
@@ -300,351 +240,59 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
     }
   };
 
-  const removeUploadFile = (index: number) => {
-    setUploadFiles(prev => prev.filter((_, i) => i !== index));
-  };
 
-  const handleRename = async () => {
-    if (!fileToRename || !newFileName.trim() || !user?.name) return;
 
-    try {
-      const response = await api.post('/v1/file/rename', {
-        filename: fileToRename.filename,
-        newName: newFileName.trim(),
-        username: user.name
-      });
 
-      if (response.data.status === 'success') {
-        // Update the file in the local state
-        setFiles(prev => prev.map(f => 
-          f.id === fileToRename.id 
-            ? { ...f, filename: newFileName.trim() }
-            : f
-        ));
 
-        setRenameModalOpen(false);
-        setFileToRename(null);
-        setNewFileName('');
-        
-        console.log('File renamed successfully:', response.data);
-      }
-    } catch (error) {
-      console.error('Rename failed:', error);
-      // You can add error handling here, e.g., show a toast notification
-    }
-  };
 
-  const handleShare = async (file: DriveFileItem) => {
+  const handleToggleStar = async (file: DriveFileItem) => {
     if (!user?.name) {
-      console.error('Username not found - user not authenticated');
+      toast.error('Please log in to star files', {
+        icon: '❌',
+        duration: 4000,
+      });
       return;
     }
 
-    setFileToShare(file);
-    setShareModalOpen(true);
-    setPublicLink('');
-    setShareToken('');
-    setLinkCopied(false);
-  };
-
-  const generatePublicLink = async () => {
-    if (!fileToShare || !user?.name) return;
-
-    setIsGeneratingLink(true);
     try {
-      const response = await api.post('/v1/file/public-share', {
-        filename: fileToShare.filename,
-        username: user.name
-      });
-
-      console.log('API Response:', response.data);
-
-      // Handle different response structures
-      if (response.data.status === 'success' && response.data.data) {
-        // If response has nested data structure
-        setPublicLink(response.data.data.publicUrl);
-        setShareToken(response.data.data.token || '');
-        console.log('Public link generated:', response.data.data);
-      } else if (response.data.publicUrl) {
-        // If response has direct publicUrl field
-        setPublicLink(response.data.publicUrl);
-        setShareToken(response.data.token || '');
-        console.log('Public link generated:', response.data);
-      } else if (response.status === 200 && response.data.publicUrl) {
-        // Handle 200 response with direct fields
-        setPublicLink(response.data.publicUrl);
-        setShareToken(response.data.token || '');
-        console.log('Public link generated:', response.data);
-      } else {
-        throw new Error(response.data.message || 'Failed to generate public link');
-      }
-    } catch (error) {
-      console.error('Failed to generate public link:', error);
-      // Show user-friendly error message
-      alert('Failed to generate public link. Please try again.');
-    } finally {
-      setIsGeneratingLink(false);
-    }
-  };
-
-  const copyToClipboard = async () => {
-    if (!publicLink) return;
-
-    try {
-      await navigator.clipboard.writeText(publicLink);
-      setLinkCopied(true);
-      setTimeout(() => setLinkCopied(false), 2000);
-    } catch (error) {
-      console.error('Failed to copy link:', error);
-      // Fallback for older browsers
-      const textArea = document.createElement('textarea');
-      textArea.value = publicLink;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-      setLinkCopied(true);
-      setTimeout(() => setLinkCopied(false), 2000);
-    }
-  };
-
-  const handleDownload = async (file: DriveFileItem) => {
-    try {
-      // Extract file extension from filename
-      const fileExtension = file.filename.split('.').pop() || '';
+      // Use the store's toggleStar function, but call the correct API endpoint
+      const currentStarred = file.starred || false;
+      const newStarred = !currentStarred;
       
-      // Concatenate fileId with extension as required by the API
-      const pathParam = fileExtension ? `${file.fileId}.${fileExtension}` : file.fileId;
-      
-      // Create download URL
-      const downloadUrl = `${api.defaults.baseURL}/v1/file/path/download?path=${encodeURIComponent(pathParam)}`;
-      
-      // Get auth token for the request
-      const token = localStorage.getItem('auth_token');
-      
-      // Create a temporary link and trigger download
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = file.filename;
-      
-      // Add authorization header by creating a fetch request instead
-      const response = await fetch(downloadUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
-      });
-      
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        
-        link.href = url;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        // Clean up the blob URL
-        window.URL.revokeObjectURL(url);
-        
-        console.log('File downloaded successfully:', file.filename);
-      } else {
-        throw new Error(`Download failed with status: ${response.status}`);
-      }
-    } catch (error) {
-      console.error('Download failed:', error);
-      // You can add error handling here, e.g., show a toast notification
-    }
-  };
-
-  const handlePreview = async (file: DriveFileItem) => {
-    try {
-      // Extract file extension from filename
-      const fileExtension = file.filename.split('.').pop() || '';
-      
-      // Concatenate fileId with extension as required by the API
-      const pathParam = fileExtension ? `${file.fileId}.${fileExtension}` : file.fileId;
-      
-      // Use the same format as download (fileId.extension)
-      const viewUrl = `${api.defaults.baseURL}/v1/file/path/view?path=${encodeURIComponent(pathParam)}`;
-      
-      // Get auth token for the request
-      const token = localStorage.getItem('auth_token');
-      
-      // For PDFs and images, we can set the URL directly for iframe/img display
-      // For other file types, we might need different handling
-      const response = await fetch(viewUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
-      });
-      
-      if (response.ok) {
-        // Create a blob URL for the preview
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        
-        setFileToPreview(file);
-        setPreviewUrl(blobUrl);
-        setPreviewModalOpen(true);
-        
-        console.log('File preview loaded:', file.filename);
-      } else {
-        // If preview fails, show error message and offer download option
-        console.error(`Preview failed with status: ${response.status}`);
-        alert(`Cannot preview this file. File not found or not accessible. You can try downloading it instead.`);
-      }
-    } catch (error) {
-      console.error('Preview failed:', error);
-      alert(`Cannot preview this file: ${error}. You can try downloading it instead.`);
-    }
-  };
-
-  const closePreview = () => {
-    if (previewUrl) {
-      window.URL.revokeObjectURL(previewUrl);
-    }
-    setPreviewModalOpen(false);
-    setFileToPreview(null);
-    setPreviewUrl('');
-  };
-
-  const handleDelete = async (file: DriveFileItem) => {
-    try {
-      if (!user?.name) {
-        console.error('Username not found - user not authenticated');
-        return;
-      }
-
-      const response = await api.post('/v1/file/delete-filename', {
+      const response = await api.post('/v1/file/update-info', {
+        username: user.name,
         filename: file.filename,
-        username: user.name
+        starred: newStarred
       });
-
+      
       if (response.data.status === 'success') {
-        // Remove the file from the local state
-        setFiles(prev => prev.filter(f => f.id !== file.id));
-        console.log('File deleted successfully:', file.filename);
-      } else {
-        throw new Error(response.data.message || 'Delete failed');
-      }
-    } catch (error) {
-      console.error('Delete failed:', error);
-      // You can add error handling here, e.g., show a toast notification
-    }
-  };
-
-  const getFileType = (filename: string): string => {
-    const extension = filename.split('.').pop()?.toLowerCase() || '';
-    
-    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(extension)) {
-      return 'image';
-    } else if (['pdf'].includes(extension)) {
-      return 'pdf';
-    } else if (['mp4', 'avi', 'mov', 'wmv', 'webm'].includes(extension)) {
-      return 'video';
-    } else if (['mp3', 'wav', 'flac', 'aac', 'ogg'].includes(extension)) {
-      return 'audio';
-    } else if (['txt', 'md', 'json', 'csv'].includes(extension)) {
-      return 'text';
-    } else {
-      return 'other';
-    }
-  };
-
-  const renderPreviewContent = () => {
-    if (!fileToPreview || !previewUrl) return null;
-    
-    const fileType = getFileType(fileToPreview.filename);
-    
-    switch (fileType) {
-      case 'image':
-        return (
-          <img 
-            src={previewUrl} 
-            alt={fileToPreview.filename}
-            className="max-w-full max-h-full object-contain"
-          />
-        );
-      case 'pdf':
-        return (
-          <iframe
-            src={previewUrl}
-            title={fileToPreview.filename}
-            className="w-full h-full border-0"
-            style={{ minHeight: '600px' }}
-          />
-        );
-      case 'video':
-        return (
-          <video 
-            controls 
-            className="max-w-full max-h-full"
-            src={previewUrl}
-          >
-            Your browser does not support the video tag.
-          </video>
-        );
-      case 'audio':
-        return (
-          <div className="flex flex-col items-center gap-4 p-8">
-            <Music className="w-16 h-16 text-gray-400" />
-            <h3 className="text-white text-lg">{fileToPreview.filename}</h3>
-            <audio controls className="w-full max-w-md">
-              <source src={previewUrl} />
-              Your browser does not support the audio tag.
-            </audio>
-          </div>
-        );
-      default:
-        return (
-          <div className="flex flex-col items-center gap-4 p-8 text-center">
-            <FileIcon className="w-16 h-16 text-gray-400" />
-            <h3 className="text-white text-lg">{fileToPreview.filename}</h3>
-            <p className="text-gray-400">Preview not available for this file type</p>
-            <Button 
-              onClick={() => handleDownload(fileToPreview)}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Download to View
-            </Button>
-          </div>
-        );
-    }
-  };
-
-  const handleAction = async (action: string, file: DriveFileItem) => {
-    switch (action) {
-      case 'view':
-        handlePreview(file);
-        break;
-      case 'download':
-        handleDownload(file);
-        break;
-      case 'share':
-        handleShare(file);
-        break;
-      case 'rename':
-        setFileToRename(file);
-        setNewFileName(file.filename);
-        setRenameModalOpen(true);
-        break;
-      case 'star':
-        setFiles(prev => prev.map(f => 
-          f.id === file.id ? { ...f, starred: !f.starred } : f
-        ));
-        break;
-      case 'delete':
-        if (confirm(`Are you sure you want to delete "${file.filename}"?`)) {
-          await handleDelete(file);
+        // Refresh files from both endpoints to ensure sync
+        await fetchFiles();
+        
+        // Show success toast
+        if (newStarred) {
+          toast.success(`"${file.filename}" added to starred files`, {
+            icon: '⭐',
+            duration: 3000,
+          });
+        } else {
+          toast.success(`"${file.filename}" removed from starred files`, {
+            icon: '✨',
+            duration: 3000,
+          });
         }
-        break;
-      default:
-        console.log('Unknown action:', action);
+      } else {
+        throw new Error(response.data.message || 'Failed to update star status');
+      }
+    } catch (error: any) {
+      console.error('Toggle star failed:', error);
+      toast.error(`Failed to update "${file.filename}" star status`, {
+        icon: '❌',
+        duration: 4000,
+      });
     }
   };
+
 
   const handleCreateFolder = () => {
     setIsCreatingFolder(true);
@@ -668,24 +316,13 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
     // This is how the backend API works - folders are created implicitly with file uploads
   };
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Card className="bg-zinc-900/50 border-zinc-800 max-w-md">
-          <CardContent className="flex flex-col items-center gap-4 p-8">
-            <AlertCircle className="w-12 h-12 text-red-400" />
-            <div className="text-center space-y-2">
-              <h3 className="text-white font-semibold">Error Loading Files</h3>
-              <p className="text-gray-400 text-sm">{error}</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Remove a file from the uploadFiles array by index
+  const removeUploadFile = (index: number) => {
+    setUploadFiles(prev => prev.filter((_, i) => i !== index));
+  };
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden w-full max-w-full">
       {/* Header Section - Fixed */}
       <div className="flex-shrink-0 space-y-4 sm:space-y-6">
         {/* Simple Header */}
@@ -696,10 +333,28 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
               <span className="truncate">My Drive</span>
             </h1>
             <p className="text-gray-400 text-sm sm:text-base">
-              {files.length} total files • {filteredFiles.length} in current directory
+              {files.length} total files • {(() => {
+                const currentDirFiles = files.filter(file => file.path === currentPath);
+                return searchQuery 
+                  ? currentDirFiles.filter(file => 
+                      file.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      file.path.toLowerCase().includes(searchQuery.toLowerCase())
+                    ).length
+                  : currentDirFiles.length;
+              })()} in current directory
             </p>
           </div>
           <div className="flex gap-2 sm:gap-3 items-center flex-wrap">
+            {/* Advanced Search Icon triggers pop-up */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-2"
+              onClick={() => setShowAdvancedSearch(true)}
+              title="Advanced Search"
+            >
+              <Filter className="w-5 h-5 text-blue-400" />
+            </Button>
             {/* Upload to Current Directory Button */}
             <Button
               onClick={() => handleFolderClick(currentPath)}
@@ -723,6 +378,12 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
             </Button>
             
             {/* View Toggle */}
+      {/* Advanced Search Pop-up (single instance) */}
+      <AdvancedSearchFilter
+        onSearch={handleAdvancedSearch}
+        open={showAdvancedSearch}
+        setOpen={setShowAdvancedSearch}
+      />
             <div className="flex border border-zinc-700 rounded-lg overflow-hidden">
               <Button
                 variant={viewMode === 'grid' ? 'default' : 'ghost'}
@@ -760,14 +421,14 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
       </div>
 
       {/* Content Area - Scrollable */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden mt-4 sm:mt-6 min-h-0">
-        <div className="space-y-4 sm:space-y-6 pb-4 sm:pb-6">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden mt-4 sm:mt-6 min-h-0 pr-2">
+        <div className="space-y-4 sm:space-y-6 pb-4 sm:pb-6 max-w-full">
 
       {/* Directory Folders */}
       {!isLoading && getSubDirectories().length > 0 && (
         <div className="mb-6">
           <h3 className="text-sm font-medium text-gray-400 mb-3">Folders</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3 w-full max-w-full overflow-hidden">
             {getSubDirectories().map((directory) => (
               <Card 
                 key={directory.path}
@@ -842,29 +503,16 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
       {/* Files View */}
       {!isLoading && (
         <>
-          {/* Show actual files in current directory */}
-          {(() => {
-            const currentDirFiles = files.filter(file => file.path === currentPath);
-            const displayFiles = searchQuery 
-              ? currentDirFiles.filter(file => 
-                  file.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                  file.path.toLowerCase().includes(searchQuery.toLowerCase())
-                )
-              : currentDirFiles;
-
-            return displayFiles.length === 0 ? (
+          {/* Show search results if present, else normal files */}
+          {searchResults ? (
+            searchResults.length === 0 ? (
               <div className="flex items-center justify-center h-96">
                 <Card className="bg-zinc-900/50 border-zinc-800 max-w-md">
                   <CardContent className="flex flex-col items-center gap-4 p-8">
                     <FileX className="w-12 h-12 text-gray-400" />
                     <div className="text-center space-y-2">
                       <h3 className="text-white font-semibold">No Files Found</h3>
-                      <p className="text-gray-400 text-sm">
-                        {searchQuery 
-                          ? 'Try adjusting your search terms'
-                          : `No files found in ${currentPath === '/' ? 'root directory' : currentPath}`
-                        }
-                      </p>
+                      <p className="text-gray-400 text-sm">No files match your search filters.</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -872,21 +520,50 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
             ) : (
               <>
                 {viewMode === 'grid' ? (
-                  <DriveFileGrid 
-                    files={displayFiles}
-                    onFileAction={handleAction}
-                  />
+                  <DriveFileGrid files={searchResults} />
                 ) : (
-                  <DriveFileList 
-                    files={displayFiles}
-                    sortBy="name"
-                    sortOrder="asc"
-                    onFileAction={handleAction}
-                  />
+                  <DriveFileList files={searchResults} sortBy="name" sortOrder="asc" />
                 )}
               </>
-            );
-          })()}
+            )
+          ) : (
+            (() => {
+              const currentDirFiles = files.filter(file => file.path === currentPath);
+              const displayFiles = searchQuery 
+                ? currentDirFiles.filter(file => 
+                    file.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    file.path.toLowerCase().includes(searchQuery.toLowerCase())
+                  )
+                : currentDirFiles;
+
+              return displayFiles.length === 0 ? (
+                <div className="flex items-center justify-center h-96">
+                  <Card className="bg-zinc-900/50 border-zinc-800 max-w-md">
+                    <CardContent className="flex flex-col items-center gap-4 p-8">
+                      <FileX className="w-12 h-12 text-gray-400" />
+                      <div className="text-center space-y-2">
+                        <h3 className="text-white font-semibold">No Files Found</h3>
+                        <p className="text-gray-400 text-sm">
+                          {searchQuery 
+                            ? 'Try adjusting your search terms'
+                            : `No files found in ${currentPath === '/' ? 'root directory' : currentPath}`
+                          }
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : (
+                <>
+                  {viewMode === 'grid' ? (
+                    <DriveFileGrid files={displayFiles} />
+                  ) : (
+                    <DriveFileList files={displayFiles} sortBy="name" sortOrder="asc" />
+                  )}
+                </>
+              );
+            })()
+          )}
         </>
       )}
 
@@ -1054,262 +731,6 @@ export default function DriveView({ initialFiles = [], loading = false, error = 
                 </div>
               </>
             )}
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* Rename Modal */}
-      <Sheet open={renameModalOpen} onOpenChange={(open) => {
-        setRenameModalOpen(open);
-        if (!open) {
-          setFileToRename(null);
-          setNewFileName('');
-        }
-      }}>
-        <SheetContent 
-          side="right" 
-          className="w-full sm:w-[400px] md:w-[540px] bg-white dark:bg-black border-gray-200 dark:border-zinc-800 p-4 sm:p-6"
-        >
-          <SheetHeader className="pb-4">
-            <SheetTitle className="text-gray-900 dark:text-white flex items-center gap-2 text-lg font-semibold">
-              <Edit3 className="w-5 h-5 text-blue-600" />
-              Rename File
-            </SheetTitle>
-          </SheetHeader>
-          
-          <div className="space-y-6">
-            {fileToRename && (
-              <div className="space-y-6">
-                <div className="p-4 bg-gray-50 dark:bg-zinc-900/50 rounded-lg border border-gray-200 dark:border-zinc-800">
-                  <h3 className="text-gray-900 dark:text-white font-semibold mb-3 text-sm uppercase tracking-wide">
-                    Current filename
-                  </h3>
-                  <div className="bg-white dark:bg-zinc-800 px-4 py-3 rounded-md border border-gray-200 dark:border-zinc-700">
-                    <p className="text-gray-800 dark:text-gray-200 font-mono text-sm break-all">
-                      {fileToRename.filename}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="space-y-3">
-                  <label 
-                    htmlFor="newFileName" 
-                    className="text-gray-900 dark:text-white font-semibold text-sm uppercase tracking-wide block"
-                  >
-                    New filename
-                  </label>
-                  <Input
-                    id="newFileName"
-                    placeholder="Enter new filename"
-                    value={newFileName}
-                    onChange={(e) => setNewFileName(e.target.value)}
-                    className="bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 h-12 text-base"
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        handleRename();
-                      }
-                    }}
-                  />
-                  <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">
-                    Keep the file extension to maintain file type
-                  </p>
-                </div>
-                
-                <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-gray-200 dark:border-zinc-800">
-                  <Button
-                    onClick={() => setRenameModalOpen(false)}
-                    variant="outline"
-                    className="w-full sm:w-auto sm:flex-1 h-12 border-gray-300 dark:border-zinc-700 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-zinc-800 font-medium"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleRename}
-                    disabled={!newFileName.trim() || newFileName === fileToRename.filename}
-                    className="w-full sm:w-auto sm:flex-1 h-12 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-zinc-700 text-white font-medium shadow-sm"
-                  >
-                    Rename File
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* Share Modal */}
-      <Sheet open={shareModalOpen} onOpenChange={(open) => {
-        setShareModalOpen(open);
-        if (!open) {
-          setFileToShare(null);
-          setPublicLink('');
-          setShareToken('');
-          setLinkCopied(false);
-        }
-      }}>
-        <SheetContent 
-          side="right" 
-          className="w-full sm:w-[400px] md:w-[540px] bg-white dark:bg-black border-gray-200 dark:border-zinc-800 p-4 sm:p-6"
-        >
-          <SheetHeader className="pb-4">
-            <SheetTitle className="text-gray-900 dark:text-white flex items-center gap-2 text-lg font-semibold">
-              <Link className="w-5 h-5 text-blue-600" />
-              Share File
-            </SheetTitle>
-          </SheetHeader>
-          
-          <div className="space-y-6">
-            {fileToShare && (
-              <div className="space-y-6">
-                {/* File Info */}
-                <div className="p-4 bg-gray-50 dark:bg-zinc-900/50 rounded-lg border border-gray-200 dark:border-zinc-800">
-                  <h3 className="text-gray-900 dark:text-white font-semibold mb-3 text-sm uppercase tracking-wide">
-                    File to share
-                  </h3>
-                  <div className="bg-white dark:bg-zinc-800 px-4 py-3 rounded-md border border-gray-200 dark:border-zinc-700">
-                    <p className="text-gray-800 dark:text-gray-200 font-mono text-sm break-all">
-                      {fileToShare.filename}
-                    </p>
-                  </div>
-                </div>
-                
-                {/* Public Link Section */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-gray-900 dark:text-white font-semibold text-sm uppercase tracking-wide">
-                      Public Link
-                    </h3>
-                    {!publicLink && (
-                      <Button
-                        onClick={generatePublicLink}
-                        disabled={isGeneratingLink}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm"
-                      >
-                        {isGeneratingLink ? 'Generating...' : 'Generate Link'}
-                      </Button>
-                    )}
-                  </div>
-                  
-                  {publicLink && (
-                    <div className="space-y-3">
-                      <div className="flex gap-2">
-                        <Input
-                          value={publicLink}
-                          readOnly
-                          className="bg-gray-50 dark:bg-zinc-800 border-gray-300 dark:border-zinc-700 text-gray-900 dark:text-white font-mono text-sm"
-                        />
-                        <Button
-                          onClick={copyToClipboard}
-                          variant="outline"
-                          className="px-3 border-gray-300 dark:border-zinc-700 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
-                        >
-                          {linkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                        </Button>
-                      </div>
-                      
-                      {linkCopied && (
-                        <p className="text-green-600 dark:text-green-400 text-sm font-medium">
-                          ✓ Link copied to clipboard!
-                        </p>
-                      )}
-
-                      {/* Show token for debugging/advanced users */}
-                      {shareToken && (
-                        <details className="mt-3">
-                          <summary className="text-gray-600 dark:text-gray-400 text-sm cursor-pointer hover:text-gray-800 dark:hover:text-gray-200">
-                            Advanced Details
-                          </summary>
-                          <div className="mt-2 p-3 bg-gray-100 dark:bg-zinc-900 rounded-md">
-                            <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Share Token:</p>
-                            <code className="text-xs text-gray-800 dark:text-gray-200 break-all">{shareToken}</code>
-                          </div>
-                        </details>
-                      )}
-                      
-                      <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
-                        <p className="text-blue-800 dark:text-blue-200 text-sm">
-                          <strong>Share this link:</strong> Anyone with this link can view and download the file. The link will remain active until you revoke access.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                {/* Action Buttons */}
-                <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-gray-200 dark:border-zinc-800">
-                  <Button
-                    onClick={() => setShareModalOpen(false)}
-                    variant="outline"
-                    className="w-full sm:w-auto sm:flex-1 h-12 border-gray-300 dark:border-zinc-700 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-zinc-800 font-medium"
-                  >
-                    Close
-                  </Button>
-                  {publicLink && (
-                    <Button
-                      onClick={copyToClipboard}
-                      className="w-full sm:w-auto sm:flex-1 h-12 bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm"
-                    >
-                      {linkCopied ? 'Copied!' : 'Copy Link'}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* File Preview Modal */}
-      <Sheet open={previewModalOpen} onOpenChange={(open) => {
-        if (!open) {
-          closePreview();
-        }
-      }}>
-        <SheetContent side="right" className="w-[90vw] max-w-4xl bg-black border-zinc-800 p-0">
-          <SheetHeader className="p-6 border-b border-zinc-800">
-            <SheetTitle className="text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Eye className="w-5 h-5" />
-                File Preview
-              </div>
-              <Button
-                onClick={closePreview}
-                variant="ghost"
-                size="sm"
-                className="text-gray-400 hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </SheetTitle>
-            {fileToPreview && (
-              <p className="text-gray-400 text-sm mt-2">
-                {fileToPreview.filename}
-              </p>
-            )}
-          </SheetHeader>
-          
-          <div className="flex-1 p-6 overflow-auto" style={{ height: 'calc(100vh - 120px)' }}>
-            <div className="w-full h-full flex items-center justify-center">
-              {renderPreviewContent()}
-            </div>
-          </div>
-          
-          {/* Action Bar */}
-          <div className="border-t border-zinc-800 p-4 flex gap-3 justify-end">
-            <Button
-              onClick={() => fileToPreview && handleDownload(fileToPreview)}
-              variant="outline"
-              className="border-zinc-700 text-gray-300 hover:text-white"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Download
-            </Button>
-            <Button
-              onClick={closePreview}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              Close
-            </Button>
           </div>
         </SheetContent>
       </Sheet>
