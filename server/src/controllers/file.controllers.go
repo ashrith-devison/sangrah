@@ -121,7 +121,12 @@ func PublicShareHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req := dto.PublicShareRequest{FileId: fileId, Username: payload.Username}
-	publicShareService := servicesImpl.NewPublicShareService()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to load config", err.Error())
+		return
+	}
+	publicShareService := servicesImpl.NewPublicShareService(cfg)
 	resp, err := publicShareService.SharePublicly(req)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -150,7 +155,12 @@ func PublicAccessHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Missing token", "No token provided")
 		return
 	}
-	publicShareService := servicesImpl.NewPublicShareService()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to load config", err.Error())
+		return
+	}
+	publicShareService := servicesImpl.NewPublicShareService(cfg)
 	fileMeta, err := publicShareService.ResolveToken(token)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -216,7 +226,12 @@ func DeleteFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Username = username
 	// Use service layer for deletion
-	userFileCrudService := servicesImpl.NewUserFileCrudService()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to load config", err.Error())
+		return
+	}
+	userFileCrudService := servicesImpl.NewUserFileCrudService(cfg)
 	err = userFileCrudService.DeleteFile(req)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -577,7 +592,7 @@ func FileMetaUploadHandler(w http.ResponseWriter, r *http.Request) {
 				correctedFilename = strings.TrimSuffix(handler.Filename, originalExt) + correctExt
 			}
 		}
-		userFileCrudService := servicesImpl.NewUserFileCrudService()
+		userFileCrudService := servicesImpl.NewUserFileCrudService(cfg)
 		db, dbErr := utils.ConnectPostgres()
 		var dummy int
 		if dbErr == nil {

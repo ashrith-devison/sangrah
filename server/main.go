@@ -3,6 +3,7 @@ package main
 import (
 	"backend/src/config"
 	"backend/src/controllers"
+	"backend/src/middleware"
 	"backend/src/routers"
 	"net/http"
 	"os"
@@ -16,9 +17,10 @@ import (
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
+	if err := godotenv.Load("F:/New folder/fileVault/server/.env"); err != nil {
 		panic("Failed to load .env file: " + err.Error())
 	}
+	println("[DEBUG] PORT after loading .env:", os.Getenv("PORT"))
 
 	logger, _ := zap.NewDevelopment()
 	defer logger.Sync()
@@ -27,6 +29,7 @@ func main() {
 
 	logger.Info("ENV", zap.String("PORT", os.Getenv("PORT")))
 	logger.Info("ENV", zap.String("DB_URL", os.Getenv("DB_URL")))
+	logger.Info("ENV", zap.String("RATE_LIMIT", os.Getenv("RATE_LIMIT")))
 
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -34,10 +37,10 @@ func main() {
 	}
 	logger.Info("Loaded DB_URL", zap.String("DB_URL", cfg.DBUrl))
 
-	controllers.InitAuthService()
-	controllers.InitFileShareService()
-	controllers.InitFileSearchService()
-	controllers.InitAdminService()
+	controllers.InitAuthService(cfg)
+	controllers.InitFileShareService(cfg)
+	controllers.InitFileSearchService(cfg)
+	controllers.InitAdminService(cfg)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -61,6 +64,7 @@ func main() {
 	mux.Handle("/api/v1/admin/", http.StripPrefix("/api/v1/admin", adminMux))
 
 	// CORS middleware for development
+	wrappedMux := middleware.RateLimitByIPMiddleware(mux)
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
@@ -69,7 +73,7 @@ func main() {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		mux.ServeHTTP(w, r)
+		wrappedMux.ServeHTTP(w, r)
 	})
 
 	logger.Info("Starting server", zap.String("port", port))

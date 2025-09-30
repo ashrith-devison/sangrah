@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"backend/src/config"
 	"backend/src/dto"
 	"backend/src/services"
 	"backend/src/servicesImpl"
@@ -12,8 +13,8 @@ import (
 var adminService services.AdminServiceInterface
 var userFileCrudService services.FileCrudServiceInterface
 
-func InitAdminService() {
-	userFileCrudService = servicesImpl.NewUserFileCrudService()
+func InitAdminService(cfg *config.Config) {
+	userFileCrudService = servicesImpl.NewUserFileCrudService(cfg)
 	adminService = servicesImpl.NewAdminService(nil, fileService, fileShareService, userFileCrudService)
 }
 

@@ -5,6 +5,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"backend/src/config"
 	"backend/src/dto"
 	"backend/src/repos"
 	servicescat "backend/src/services"
@@ -18,8 +19,8 @@ type AuthService struct {
 	repo *repos.AuthRepo
 }
 
-func NewAuthService() *AuthService {
-	db, err := utils.ConnectPostgres()
+func NewAuthService(cfg *config.Config) *AuthService {
+	db, err := utils.ConnectPostgresWithConfig(cfg)
 	if err != nil {
 		panic("Failed to connect to DB: " + err.Error())
 	}
@@ -82,5 +83,5 @@ func (s *AuthService) LoginUser(req dto.LoginRequest, logger *zap.Logger, reques
 		role = "admin"
 	}
 	logger.Info("Login successful", zap.String("requestID", requestID), zap.String("username", username), zap.String("email", req.Email))
-	    return dto.LoginResponse{Username: username, Email: req.Email, Token: token, Role: role}, nil
+	return dto.LoginResponse{Username: username, Email: req.Email, Token: token, Role: role}, nil
 }

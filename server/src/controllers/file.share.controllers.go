@@ -6,13 +6,15 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"backend/src/config"
+
 	"go.uber.org/zap"
 )
 
 var fileShareService *servicesImpl.FileShareService
 
-func InitFileShareService() {
-	fileShareService = servicesImpl.NewFileShareService()
+func InitFileShareService(cfg *config.Config) {
+	fileShareService = servicesImpl.NewFileShareService(cfg)
 }
 
 // ShareFileHandler handles sharing a file with another user

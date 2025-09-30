@@ -8,6 +8,21 @@ import (
 	_ "github.com/lib/pq"
 )
 
+// ConnectPostgresWithConfig connects to Postgres using a provided config
+func ConnectPostgresWithConfig(cfg *config.Config) (*sql.DB, error) {
+	connStr := cfg.DBUrl
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Printf("Error opening DB connection: %v", err)
+		return nil, err
+	}
+	if err := db.Ping(); err != nil {
+		log.Printf("Error pinging DB: %v", err)
+		return nil, err
+	}
+	return db, nil
+}
+
 func ConnectPostgres() (*sql.DB, error) {
 	cfg, err := config.LoadConfig()
 	if err != nil {
