@@ -32,6 +32,12 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid request payload", err.Error())
 		return
 	}
+	// Validate required fields
+	if req.Email == "" || req.Password == "" {
+		AuthLogger.Error("Missing email or password", zap.String("requestID", requestID))
+		utils.WriteAPIError(w, http.StatusBadRequest, "Email and password are required", "")
+		return
+	}
 	resp, err := AuthService.LoginUser(req, AuthLogger, requestID)
 	if err != nil {
 		AuthLogger.Error("Login failed", zap.String("requestID", requestID), zap.Error(err))

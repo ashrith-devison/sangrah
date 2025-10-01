@@ -3,6 +3,7 @@ package files
 import (
 	"backend/src/config"
 	"backend/src/dto"
+	"backend/src/repos"
 	"backend/src/servicesImpl"
 	"backend/src/utils"
 	"database/sql"
@@ -85,14 +86,9 @@ func PublicShareHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "filename, username required")
 		return
 	}
-	db, err := utils.ConnectPostgres()
-	if err != nil {
-		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
-		return
-	}
-	defer db.Close()
-	var fileId string
-	err = db.QueryRow("SELECT file_id FROM user_files WHERE username = $1 AND filename = $2 AND permission = 'owner'", payload.Username, payload.Filename).Scan(&fileId)
+	db := utils.GetDB()
+	fileCrudRepo := repos.NewFileCrudRepo(db)
+	fileId, err := fileCrudRepo.GetFileIdByUsernameAndFilename(payload.Username, payload.Filename)
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusNotFound, "File not found or not owned", "File not found or not owned by user")
 		return

@@ -62,26 +62,28 @@ export default function StarredFilesView({ items: propItems }: StarredFilesViewP
     try {
       setLoading(true);
       setError(null);
-      
+
       // Get username from user store or fallback
       const username = user?.name || user?.email || 'ashrith-sai'; // fallback for demo
-      
+
       if (!username) {
         setError('User not authenticated');
         return;
       }
-      
+
       // Make API call directly
       const response = await api.get<ApiStarredFilesResponse>(
         `/v1/file/owned-info?username=${username}`
       );
 
       if (response.data.status === 'success') {
+        // If data is null, treat as empty array
+        const apiData = response.data.data || [];
         // Filter only starred files
-        const starredFiles = response.data.data.filter((file: ApiStarredFile) => file.starred);
+        const starredFiles = apiData.filter((file: ApiStarredFile) => file.starred);
         const transformedItems = starredFiles.map(transformApiDataToStarredItem);
         setItems(transformedItems);
-        
+
         // Only show success toast on manual refresh (when there are existing items)
         if (items.length > 0) {
           toast.success(`Refreshed ${transformedItems.length} starred files`);

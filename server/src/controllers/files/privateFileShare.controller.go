@@ -66,17 +66,9 @@ func ShareFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if the user is the owner of the file (by username and filename)
-	db, err := utils.ConnectPostgres()
-	if err != nil {
-		FileLogger.Error("Failed to connect to DB", zap.Error(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(dto.FileShareResponse{Success: false, Message: "Database error"})
-		return
-	}
-	defer db.Close()
-
+	db := utils.GetDB()
 	var owner string
-	err = db.QueryRow(`SELECT username FROM user_files WHERE username = $1 AND file_id = $2 AND permission = 'owner'`, req.Owner, req.FileID).Scan(&owner)
+	err := db.QueryRow(`SELECT username FROM user_files WHERE username = $1 AND file_id = $2 AND permission = 'owner'`, req.Owner, req.FileID).Scan(&owner)
 	if err == sql.ErrNoRows || owner != req.Owner {
 		FileLogger.Error("Only the owner can share the file")
 		w.WriteHeader(http.StatusForbidden)

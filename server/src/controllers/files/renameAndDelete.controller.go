@@ -112,13 +112,8 @@ func DeleteFileByFilenameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Username = username
-	db, err := utils.ConnectPostgres()
-	if err != nil {
-		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
-		return
-	}
-	defer db.Close()
-	fileCrudRepo := repos.FileCrudRepo{Db: db}
+	db := utils.GetDB()
+	fileCrudRepo := repos.NewFileCrudRepo(db)
 	err = fileCrudRepo.DeleteFileByFilename(req.Username, req.Filename)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -158,13 +153,8 @@ func RenameFileHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid new filename", "New filename must include a valid extension")
 		return
 	}
-	db, err := utils.ConnectPostgres()
-	if err != nil {
-		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
-		return
-	}
-	defer db.Close()
-	fileCrudRepo := repos.FileCrudRepo{Db: db}
+	db := utils.GetDB()
+	fileCrudRepo := repos.NewFileCrudRepo(db)
 
 	// Get file path using repo
 	filePath, err := fileCrudRepo.GetFilePathByUsernameAndFilename(req.Username, req.Filename)

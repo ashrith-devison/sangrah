@@ -33,18 +33,13 @@ func UpdateFileInfoHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "username, filename required")
 		return
 	}
-	db, err := utils.ConnectPostgres()
-	if err != nil {
-		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
-		return
-	}
-	defer db.Close()
-	fileCrudRepo := repos.FileCrudRepo{Db: db}
+	db := utils.GetDB()
+	fileCrudRepo := repos.NewFileCrudRepo(db)
 	var tagsPtr *string
 	if payload.Tags != "" {
 		tagsPtr = &payload.Tags
 	}
-	err = fileCrudRepo.UpsertUserFileInfo(payload.Username, payload.Filename, tagsPtr, payload.Starred)
+	err := fileCrudRepo.UpsertUserFileInfo(payload.Username, payload.Filename, tagsPtr, payload.Starred)
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to upsert file info", err.Error())
 		return
@@ -68,18 +63,9 @@ func OwnedFileInfoHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username required")
 		return
 	}
-	db, err := utils.ConnectPostgres()
-	if err != nil {
-		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
-		return
-	}
-	defer db.Close()
-	rows, err := db.Query(`
-		SELECT ufi.id, ufi.username, ufi.filename, ufi.tags, ufi.upload_time, ufi.starred, ufi.permission, uf.file_id
-		FROM user_file_info ufi
-		JOIN user_files uf ON ufi.username = uf.username AND ufi.filename = uf.filename
-		WHERE ufi.username = $1
-	`, username)
+	db := utils.GetDB()
+	fileCrudRepo := repos.NewFileCrudRepo(db)
+	rows, err := fileCrudRepo.QueryOwnedFileInfoRows(username)
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to fetch files", err.Error())
 		return
