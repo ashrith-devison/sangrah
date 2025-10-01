@@ -8,6 +8,7 @@ import (
 	"backend/src/utils"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -206,6 +207,7 @@ func RenameFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// Open file and validate MIME type
 	f, err := OpenFileForRename(filePath)
+	fmt.Print(filePath, "\n", err)
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to open file for MIME validation", err.Error())
 		return
@@ -214,6 +216,7 @@ func RenameFileHandler(w http.ResponseWriter, r *http.Request) {
 	buffer := make([]byte, 512)
 	n, _ := f.Read(buffer)
 	if err := ValidateMimeTypeForRename(req.NewName, buffer[:n]); err != nil {
+		// Debug output for detected/expected MIME is printed by ValidateMimeType
 		utils.WriteAPIError(w, http.StatusBadRequest, "MIME type mismatch", err.Error())
 		return
 	}
