@@ -60,6 +60,9 @@ func PublicAccessHandler(w http.ResponseWriter, r *http.Request) {
 	io.Copy(w, file)
 }
 
+// Injectable DB getter for testability
+var GetDBForPublicFileShare = utils.GetDB
+
 // PublicShareHandler shares a file or folder publicly, generating a public link
 // @Summary Share file publicly by filename
 // @Description Generates a public link for a file, accessible to anyone with the link. Accepts filename and username in request body.
@@ -86,7 +89,7 @@ func PublicShareHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "filename, username required")
 		return
 	}
-	db := utils.GetDB()
+	db := GetDBForPublicFileShare()
 	fileCrudRepo := repos.NewFileCrudRepo(db)
 	fileId, err := fileCrudRepo.GetFileIdByUsernameAndFilename(payload.Username, payload.Filename)
 	if err != nil {

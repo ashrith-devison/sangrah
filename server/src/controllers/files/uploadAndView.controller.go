@@ -18,7 +18,65 @@ import (
 	"go.uber.org/zap"
 )
 
-// Use shared FileService and logger from init.go
+// UserFileCrudService interface for testable user file logic
+type UserFileCrudService interface {
+	UserFileExists(username, hash string) (bool, error)
+	GetNextCopyFilename(username, filename string) (string, error)
+	InsertUserFileWithPath(username, hash, filename, role, folderPath string) error
+}
+
+// realUserFileCrudService implements UserFileCrudService using the real service
+type realUserFileCrudService struct {
+	inner *servicesImpl.UserFileCrudService
+}
+
+func (r realUserFileCrudService) UserFileExists(username, hash string) (bool, error) {
+	return r.inner.Repo.UserFileExists(username, hash)
+}
+func (r realUserFileCrudService) GetNextCopyFilename(username, filename string) (string, error) {
+	return r.inner.Repo.GetNextCopyFilename(username, filename)
+}
+func (r realUserFileCrudService) InsertUserFileWithPath(username, hash, filename, role, folderPath string) error {
+	return r.inner.InsertUserFileWithPath(username, hash, filename, role, folderPath)
+}
+
+// UserFileCrudServiceImpl is the injectable service (can be replaced in tests)
+var UserFileCrudServiceImpl func(cfg *config.Config) UserFileCrudService = func(cfg *config.Config) UserFileCrudService {
+	return realUserFileCrudService{servicesImpl.NewUserFileCrudService(cfg)}
+}
+
+// FileUploader interface for upload logic (for testability)
+type FileUploader interface {
+	CoreUpload(file io.ReadSeeker, filename string, r *http.Request) (string, string, string, string, error)
+}
+
+// Default implementation uses servicesImpl.CoreUpload
+type realFileUploader struct{}
+
+func (realFileUploader) CoreUpload(file io.ReadSeeker, filename string, r *http.Request) (string, string, string, string, error) {
+	return servicesImpl.CoreUpload(file, filename, r)
+}
+
+var FileUploaderImpl FileUploader = realFileUploader{}
+
+// FileCrudRepo interface for testable DB logic
+// Injectable DB getter for testability
+var GetDBForUploadAndView = utils.GetDB
+
+type FileCrudRepo interface {
+	GetUserStorageUsedMB(username string) (float64, error)
+	// Add other methods as needed for your handler
+}
+
+// realFileCrudRepo implements FileCrudRepo using the real repo
+type realFileCrudRepo struct{}
+
+func (realFileCrudRepo) GetUserStorageUsedMB(username string) (float64, error) {
+	return repos.NewFileCrudRepo(GetDBForUploadAndView()).GetUserStorageUsedMB(username)
+}
+
+// FileCrudRepoImpl is the injectable repo (can be replaced in tests)
+var FileCrudRepoImpl FileCrudRepo = realFileCrudRepo{}
 
 // FileMetaUploadHandler handles file upload with metadata
 // @Summary Upload file with metadata
@@ -74,9 +132,7 @@ func FileMetaUploadHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username required for quota check")
 		return
 	}
-	db := utils.GetDB()
-	fileCrudRepo := repos.NewFileCrudRepo(db)
-	usedMB, err := fileCrudRepo.GetUserStorageUsedMB(username)
+	usedMB, err := FileCrudRepoImpl.GetUserStorageUsedMB(username)
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to get storage usage", err.Error())
 		return
@@ -97,7 +153,7 @@ func FileMetaUploadHandler(w http.ResponseWriter, r *http.Request) {
 			})
 			continue
 		}
-		filename, mimetype, hash, savedPath, err := servicesImpl.CoreUpload(file, handler.Filename, r)
+		filename, mimetype, hash, savedPath, err := FileUploaderImpl.CoreUpload(file, handler.Filename, r)
 		if err != nil {
 			FileLogger.Error("Failed to upload file", zap.String("requestID", requestID), zap.String("filename", handler.Filename), zap.Error(err))
 			uploadedFiles = append(uploadedFiles, map[string]interface{}{
@@ -125,8 +181,8 @@ func FileMetaUploadHandler(w http.ResponseWriter, r *http.Request) {
 				correctedFilename = strings.TrimSuffix(handler.Filename, originalExt) + correctExt
 			}
 		}
-		userFileCrudService := servicesImpl.NewUserFileCrudService(cfg)
-		userFileExists, err := userFileCrudService.Repo.UserFileExists(username, hash)
+		userFileCrudService := UserFileCrudServiceImpl(cfg)
+		userFileExists, err := userFileCrudService.UserFileExists(username, hash)
 		if err != nil {
 			FileLogger.Error("Failed to check if user file exists", zap.String("requestID", requestID), zap.Error(err))
 			uploadedFiles = append(uploadedFiles, map[string]interface{}{
@@ -136,7 +192,7 @@ func FileMetaUploadHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if userFileExists {
-			correctedFilename, _ = userFileCrudService.Repo.GetNextCopyFilename(username, handler.Filename)
+			correctedFilename, _ = userFileCrudService.GetNextCopyFilename(username, handler.Filename)
 		}
 		folderPath := r.FormValue("path")
 		if folderPath == "" {
@@ -204,7 +260,7 @@ func ServeFileByPathHandler(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	// Increment download_count in user_files for this file using repo
-	db2 := utils.GetDB()
+	db2 := GetDBForUploadAndView()
 	fileCrudRepo := repos.NewFileCrudRepo(db2)
 	// If SHA256 is missing, look it up from DB using filename and username
 	fmt.Printf("logger: %v\n", fileMeta)

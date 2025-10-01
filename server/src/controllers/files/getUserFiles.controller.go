@@ -17,13 +17,16 @@ import (
 // @Failure 400 {object} utils.APIError "Missing username"
 // @Failure 500 {object} utils.APIError "Internal server error"
 // @Router /api/v1/file/owned [get]
+// Injectable DB getter for testability
+var GetDBForGetUserFiles = utils.GetDB
+
 func OwnedFilesHandler(w http.ResponseWriter, r *http.Request) {
 	username, ok := utils.GetUsernameFromContext(r.Context())
 	if !ok || username == "" {
 		utils.WriteAPIError(w, http.StatusUnauthorized, "Unauthorized", "Username not found in token/context")
 		return
 	}
-	db := utils.GetDB()
+	db := GetDBForGetUserFiles()
 	fileCrudRepo := repos.FileCrudRepo{Db: db}
 	rows, err := fileCrudRepo.QueryOwnedFilesRows(username)
 	if err != nil {
