@@ -1,11 +1,59 @@
 package repos
 
 import (
+	"backend/src/utils"
 	"database/sql"
 	"fmt"
 	"os"
 	"strings"
 )
+
+type FileCrudRepo struct {
+	Db utils.DBExecutor
+}
+
+// NewFileCrudRepo returns a new FileCrudRepo with the given DBExecutor
+func NewFileCrudRepo(db utils.DBExecutor) *FileCrudRepo {
+	return &FileCrudRepo{Db: db}
+}
+
+// QueryOwnedFileInfoRows returns sql.Rows for all user_file_info joined with user_files for a username
+func (r *FileCrudRepo) QueryOwnedFileInfoRows(username string) (*sql.Rows, error) {
+	return r.Db.Query(`
+		SELECT ufi.id, ufi.username, ufi.filename, ufi.tags, ufi.upload_time, ufi.starred, ufi.permission, uf.file_id
+		FROM user_file_info ufi
+		JOIN user_files uf ON ufi.username = uf.username AND ufi.filename = uf.filename
+		WHERE ufi.username = $1
+	`, username)
+}
+
+// GetUsernameByEmail returns the username for a given email, or error if not found
+func (r *FileCrudRepo) GetUsernameByEmail(email string) (string, error) {
+	var username string
+	err := r.Db.QueryRow("SELECT username FROM users WHERE email = $1", email).Scan(&username)
+	if err != nil {
+		return "", err
+	}
+	return username, nil
+}
+
+// QueryOwnedFilesRows returns sql.Rows for all files owned by the user (permission = 'owner')
+func (r *FileCrudRepo) QueryOwnedFilesRows(username string) (*sql.Rows, error) {
+	return r.Db.Query(`SELECT id, username, file_id, filename, permission, path, created_at FROM user_files WHERE username = $1 AND permission = 'owner'`, username)
+}
+
+// IsUserOwnerOfFile checks if the given username is the owner of the file (by file_id)
+func (r *FileCrudRepo) IsUserOwnerOfFile(username, fileId string) (bool, error) {
+	var owner string
+	err := r.Db.QueryRow(`SELECT username FROM user_files WHERE username = $1 AND file_id = $2 AND permission = 'owner'`, username, fileId).Scan(&owner)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return owner == username, nil
+}
 
 // Checks if a user exists by username
 func (r *FileCrudRepo) UserExists(username string) (bool, error) {
@@ -35,16 +83,15 @@ func (r *FileCrudRepo) GetOwnedFileCount(username string) (int, error) {
 	return count, err
 }
 
-// GetDuplicateFileCount returns the total number of duplicate files for a user (sum of (count-1) for each file_id with count > 1)
+// GetDuplicateFileCount returns the number of duplicate files for a user (same file_id/sha256, multiple filenames)
 func (r *FileCrudRepo) GetDuplicateFileCount(username string) (int, error) {
-       var count int
-       err := r.Db.QueryRow(`
-	       SELECT COALESCE(SUM(cnt - 1), 0) FROM (
-		       SELECT COUNT(*) as cnt FROM user_files WHERE username = $1 GROUP BY file_id HAVING COUNT(*) > 1
-	       ) AS sub
+	var count int
+	err := r.Db.QueryRow(`
+	       SELECT COUNT(*) FROM (
+		       SELECT file_id FROM user_files WHERE username = $1 GROUP BY file_id HAVING COUNT(*) > 1
+	       ) AS dup
        `, username).Scan(&count)
-       fmt.Printf("[DEBUG] GetDuplicateFileCount: username=%s, duplicate_count=%d, err=%v\n", username, count, err)
-       return count, err
+	return count, err
 }
 
 // GetLargeFileCount returns the number of large files (>10MB) for a user
@@ -151,10 +198,6 @@ func (r *FileCrudRepo) InsertUserFile(username, fileId, filename, permission str
 	query := `INSERT INTO user_files (username, file_id, filename, permission) VALUES ($1, $2, $3, $4)`
 	_, err := r.Db.Exec(query, username, fileId, filename, permission)
 	return err
-}
-
-type FileCrudRepo struct {
-	Db *sql.DB
 }
 
 // GetFilesUploadedLast24h returns the number of files uploaded by user in last 24 hours (based on user_files.created_at)
@@ -333,4 +376,47 @@ func (r *FileCrudRepo) GetUserStorageUsedMB(username string) (float64, error) {
 		return 0, err
 	}
 	return totalBytes / (1024 * 1024), nil // Convert bytes to MB
+}
+
+// GetFileIdByUsernameAndFilename returns the file_id for a given username and filename (owner permission)
+func (r *FileCrudRepo) GetFileIdByUsernameAndFilename(username, filename string) (string, error) {
+	var fileId string
+	err := r.Db.QueryRow("SELECT file_id FROM user_files WHERE username = $1 AND filename = $2 AND permission = 'owner'", username, filename).Scan(&fileId)
+	if err != nil {
+		return "", err
+	}
+	return fileId, nil
+}
+
+// UserFileExists returns true if a user_file record exists for username and file_id
+func (r *FileCrudRepo) UserFileExists(username, fileId string) (bool, error) {
+	var dummy int
+	err := r.Db.QueryRow("SELECT 1 FROM user_files WHERE username = $1 AND file_id = $2", username, fileId).Scan(&dummy)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// GetFileIdByFilenameAndUsername returns the file_id for a given filename and username
+func (r *FileCrudRepo) GetFileIdByFilenameAndUsername(filename, username string) (string, error) {
+	var fileId string
+	err := r.Db.QueryRow("SELECT file_id FROM user_files WHERE filename = $1 AND username = $2", filename, username).Scan(&fileId)
+	if err != nil {
+		return "", err
+	}
+	return fileId, nil
+}
+
+// GetFileIdByFilenameAnyUser returns the file_id for a given filename for any user (first match)
+func (r *FileCrudRepo) GetFileIdByFilenameAnyUser(filename string) (string, error) {
+	var fileId string
+	err := r.Db.QueryRow("SELECT file_id FROM user_files WHERE filename = $1 LIMIT 1", filename).Scan(&fileId)
+	if err != nil {
+		return "", err
+	}
+	return fileId, nil
 }

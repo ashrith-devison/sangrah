@@ -47,3 +47,19 @@ jobs:
       - name: Print success if all services are healthy
         run: |
           echo "All services are healthy!"
+
+  server-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      - name: Install dependencies
+        run: go mod download
+      - name: Run tests
+        run: go test ./src/tests/... -v

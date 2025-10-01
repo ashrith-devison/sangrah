@@ -24,13 +24,7 @@ func GetUserStorageQuotaHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username required")
 		return
 	}
-	db, err := utils.ConnectPostgres()
-	if err != nil {
-		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
-		return
-	}
-	defer db.Close()
-	fileCrudRepo := repos.FileCrudRepo{Db: db}
+	fileCrudRepo := repos.NewFileCrudRepo(utils.GetDB())
 	usedMB, err := fileCrudRepo.GetUserStorageUsedMB(username)
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to get storage usage", err.Error())
@@ -50,14 +44,8 @@ func GetUserStorageQuotaHandler(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} utils.APIResponse "Analytics data"
 // @Router /api/v1/file/storage/analytics [get]
 func AnalyticsHandler(w http.ResponseWriter, r *http.Request) {
-	db, err := utils.ConnectPostgres()
-	if err != nil {
-		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
-		return
-	}
-	defer db.Close()
-	fileCrudRepo := repos.FileCrudRepo{Db: db}
-	fileRepo := repos.NewFileRepo(db)
+	fileCrudRepo := repos.NewFileCrudRepo(utils.GetDB())
+	fileRepo := repos.NewFileRepo(utils.GetDB())
 	logicalFiles, uniqueUploaders, err := fileCrudRepo.GetLogicalFilesAndUniqueUploaders()
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to fetch logical files and uploaders", err.Error())
@@ -112,24 +100,20 @@ func UserStatsHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username or email required")
 		return
 	}
-	db, err := utils.ConnectPostgres()
-	if err != nil {
-		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
-		return
-	}
-	defer db.Close()
 	var username string
+	db := utils.GetDB()
+	fileCrudRepo := repos.NewFileCrudRepo(db)
 	// If input contains '@', treat as email and look up username
 	if strings.Contains(usernameOrEmail, "@") {
-		err := db.QueryRow("SELECT username FROM users WHERE email = $1", usernameOrEmail).Scan(&username)
+		uname, err := fileCrudRepo.GetUsernameByEmail(usernameOrEmail)
 		if err != nil {
 			utils.WriteAPIError(w, http.StatusBadRequest, "Invalid email", "No user found for this email")
 			return
 		}
+		username = uname
 	} else {
 		username = usernameOrEmail
 	}
-	fileCrudRepo := repos.FileCrudRepo{Db: db}
 
 	// Number of files shared in public
 	publicSharedCount, err := fileCrudRepo.GetPublicSharedCount(username)

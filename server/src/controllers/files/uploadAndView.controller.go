@@ -74,13 +74,8 @@ func FileMetaUploadHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username required for quota check")
 		return
 	}
-	db, err := utils.ConnectPostgres()
-	if err != nil {
-		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
-		return
-	}
-	defer db.Close()
-	fileCrudRepo := repos.FileCrudRepo{Db: db}
+	db := utils.GetDB()
+	fileCrudRepo := repos.NewFileCrudRepo(db)
 	usedMB, err := fileCrudRepo.GetUserStorageUsedMB(username)
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to get storage usage", err.Error())
@@ -131,14 +126,17 @@ func FileMetaUploadHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		userFileCrudService := servicesImpl.NewUserFileCrudService(cfg)
-		db, dbErr := utils.ConnectPostgres()
-		var dummy int
-		if dbErr == nil {
-			defer db.Close()
-			row := db.QueryRow("SELECT 1 FROM user_files WHERE username = $1 AND file_id = $2", username, hash)
-			if row.Scan(&dummy) == nil {
-				correctedFilename, _ = userFileCrudService.Repo.GetNextCopyFilename(username, handler.Filename)
-			}
+		userFileExists, err := userFileCrudService.Repo.UserFileExists(username, hash)
+		if err != nil {
+			FileLogger.Error("Failed to check if user file exists", zap.String("requestID", requestID), zap.Error(err))
+			uploadedFiles = append(uploadedFiles, map[string]interface{}{
+				"filename": handler.Filename,
+				"error":    err.Error(),
+			})
+			continue
+		}
+		if userFileExists {
+			correctedFilename, _ = userFileCrudService.Repo.GetNextCopyFilename(username, handler.Filename)
 		}
 		folderPath := r.FormValue("path")
 		if folderPath == "" {
@@ -206,49 +204,44 @@ func ServeFileByPathHandler(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	// Increment download_count in user_files for this file using repo
-	db2, err := utils.ConnectPostgres()
-	if err == nil {
-		defer db2.Close()
-		fileCrudRepo := repos.FileCrudRepo{Db: db2}
-		// If SHA256 is missing, look it up from DB using filename and username
-		fmt.Printf("logger: %v\n", fileMeta)
-		if fileMeta.SHA256 == "" {
-			var sha256 string
-			username := r.URL.Query().Get("username")
-			var err error
-			baseFilename := filepath.Base(fileMeta.Filename)
-			fmt.Printf("[DEBUG] DB lookup: fileMeta.Filename=%s, baseFilename=%s\n", fileMeta.Filename, baseFilename)
-			if username != "" {
-				err = db2.QueryRow("SELECT file_id FROM user_files WHERE filename = $1 AND username = $2", baseFilename, username).Scan(&sha256)
-			} else {
-				err = db2.QueryRow("SELECT file_id FROM user_files WHERE filename = $1 LIMIT 1", baseFilename).Scan(&sha256)
+	db2 := utils.GetDB()
+	fileCrudRepo := repos.NewFileCrudRepo(db2)
+	// If SHA256 is missing, look it up from DB using filename and username
+	fmt.Printf("logger: %v\n", fileMeta)
+	if fileMeta.SHA256 == "" {
+		var sha256 string
+		username := r.URL.Query().Get("username")
+		baseFilename := filepath.Base(fileMeta.Filename)
+		fmt.Printf("[DEBUG] DB lookup: fileMeta.Filename=%s, baseFilename=%s\n", fileMeta.Filename, baseFilename)
+		var repoErr error
+		if username != "" {
+			sha256, repoErr = fileCrudRepo.GetFileIdByFilenameAndUsername(baseFilename, username)
+		} else {
+			sha256, repoErr = fileCrudRepo.GetFileIdByFilenameAnyUser(baseFilename)
+		}
+		fmt.Printf("[DEBUG] DB lookup for SHA256: filename=%s, username=%s, result=%s, err=%v\n", baseFilename, username, sha256, repoErr)
+		if repoErr == nil && sha256 != "" {
+			fileMeta.SHA256 = sha256
+		} else {
+			// Fallback: extract file_id from path
+			fileId := strings.TrimPrefix(fileMeta.Path, "storage"+string(os.PathSeparator))
+			dot := strings.LastIndex(fileId, ".")
+			if dot > 0 {
+				fileId = fileId[:dot]
 			}
-			fmt.Printf("[DEBUG] DB lookup for SHA256: filename=%s, username=%s, result=%s, err=%v\n", baseFilename, username, sha256, err)
-			if err == nil && sha256 != "" {
-				fileMeta.SHA256 = sha256
-			} else {
-				// Fallback: extract file_id from path
-				fileId := strings.TrimPrefix(fileMeta.Path, "storage"+string(os.PathSeparator))
-				dot := strings.LastIndex(fileId, ".")
-				if dot > 0 {
-					fileId = fileId[:dot]
-				}
-				fileMeta.SHA256 = fileId
-				fmt.Printf("[DEBUG] Fallback fileId from path: %s\n", fileId)
-			}
+			fileMeta.SHA256 = fileId
+			fmt.Printf("[DEBUG] Fallback fileId from path: %s\n", fileId)
 		}
-		// remove extension from SHA256 if present
-		if strings.Contains(fileMeta.SHA256, ".") {
-			fileMeta.SHA256 = strings.Split(fileMeta.SHA256, ".")[0]
-		}
-		fmt.Printf("logger after: %v\n", fileMeta.SHA256)
-		updateErr := fileCrudRepo.IncrementDownloadCount(fileMeta.SHA256)
-		fmt.Printf("Incrementing download count for fileId: %v\n", fileMeta.SHA256)
-		if updateErr != nil {
-			FileLogger.Error("Failed to increment download_count", zap.String("requestID", requestID), zap.String("file_id", fileMeta.SHA256), zap.Error(updateErr))
-		}
-	} else {
-		FileLogger.Error("Failed to connect to DB for download_count update", zap.String("requestID", requestID), zap.Error(err))
+	}
+	// remove extension from SHA256 if present
+	if strings.Contains(fileMeta.SHA256, ".") {
+		fileMeta.SHA256 = strings.Split(fileMeta.SHA256, ".")[0]
+	}
+	fmt.Printf("logger after: %v\n", fileMeta.SHA256)
+	updateErr := fileCrudRepo.IncrementDownloadCount(fileMeta.SHA256)
+	fmt.Printf("Incrementing download count for fileId: %v\n", fileMeta.SHA256)
+	if updateErr != nil {
+		FileLogger.Error("Failed to increment download_count", zap.String("requestID", requestID), zap.String("file_id", fileMeta.SHA256), zap.Error(updateErr))
 	}
 
 	FileLogger.Info("Serving file", zap.String("requestID", requestID), zap.String("remoteAddr", r.RemoteAddr), zap.String("path", fileMeta.Path))

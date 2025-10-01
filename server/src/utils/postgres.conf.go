@@ -4,9 +4,45 @@ import (
 	"backend/src/config"
 	"database/sql"
 	"log"
+	"net/http"
+	"sync"
 
 	_ "github.com/lib/pq"
 )
+
+var (
+	globalDB     *sql.DB
+	globalDBOnce sync.Once
+)
+
+// DBExecutor abstracts the methods used from *sql.DB for loose coupling and testability
+type DBExecutor interface {
+	QueryRow(query string, args ...interface{}) *sql.Row
+	Exec(query string, args ...interface{}) (sql.Result, error)
+	Query(query string, args ...interface{}) (*sql.Rows, error)
+}
+
+// GetDB returns a singleton *sql.DB for the whole app (thread-safe)
+func GetDB() *sql.DB {
+	globalDBOnce.Do(func() {
+		db, err := ConnectPostgres()
+		if err != nil {
+			log.Fatalf("Failed to initialize global DB: %v", err)
+		}
+		globalDB = db
+	})
+	return globalDB
+}
+
+func WithDB(w http.ResponseWriter, handler func(db *sql.DB)) {
+	db, err := ConnectPostgres()
+	if err != nil {
+		WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
+		return
+	}
+	defer db.Close()
+	handler(db)
+}
 
 // ConnectPostgresWithConfig connects to Postgres using a provided config
 func ConnectPostgresWithConfig(cfg *config.Config) (*sql.DB, error) {

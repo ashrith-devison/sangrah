@@ -23,14 +23,9 @@ func OwnedFilesHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusUnauthorized, "Unauthorized", "Username not found in token/context")
 		return
 	}
-	db, err := utils.ConnectPostgres()
-	if err != nil {
-		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to connect to DB", err.Error())
-		return
-	}
-	defer db.Close()
+	db := utils.GetDB()
 	fileCrudRepo := repos.FileCrudRepo{Db: db}
-	rows, err := fileCrudRepo.Db.Query(`SELECT id, username, file_id, filename, permission, path, created_at FROM user_files WHERE username = $1 AND permission = 'owner'`, username)
+	rows, err := fileCrudRepo.QueryOwnedFilesRows(username)
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to fetch owned files", err.Error())
 		return

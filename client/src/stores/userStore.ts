@@ -56,8 +56,9 @@ export const useUserStore = create<UserStore>()(
           // Store token in localStorage for API calls
           if (typeof window !== 'undefined') {
             localStorage.setItem('auth_token', userData.token);
-            // Also set token in cookies for middleware
-            document.cookie = `auth-token=${userData.token}; path=/; max-age=${7 * 24 * 60 * 60}; secure; samesite=strict`;
+            // Set token in cookies for middleware with 30m expiry
+            const expiry = 30 * 60; // 30 minutes in seconds
+            document.cookie = `auth-token=${userData.token}; path=/; max-age=${expiry}; secure; samesite=strict`;
           }
         } catch (error) {
           set({ isLoading: false });

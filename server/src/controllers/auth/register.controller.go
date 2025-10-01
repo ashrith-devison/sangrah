@@ -36,6 +36,12 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid request payload", decodeErr.Error())
 		return
 	}
+	// Validate required fields
+	if req.Username == "" || req.Email == "" || req.Password == "" {
+		AuthLogger.Error("Missing required registration fields", zap.String("requestID", requestID))
+		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid request payload", "username, email, and password are required")
+		return
+	}
 	resp, err := AuthService.RegisterUser(req, AuthLogger, requestID)
 	if err != nil {
 		AuthLogger.Error("Registration failed", zap.String("requestID", requestID), zap.Error(err))
