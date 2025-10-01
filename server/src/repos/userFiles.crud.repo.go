@@ -216,12 +216,26 @@ func (r *FileCrudRepo) GetFilesUploadedLastWeek(username string) (int, error) {
 
 // GetFilePathByUsernameAndFilename returns the file path for a given username and filename
 func (r *FileCrudRepo) GetFilePathByUsernameAndFilename(username, filename string) (string, error) {
-	var filePath string
-	err := r.Db.QueryRow("SELECT path FROM user_files WHERE username = $1 AND filename = $2", username, filename).Scan(&filePath)
+	// Always return /storage/<filename> regardless of DB path
+	if filename == "" {
+		return "", fmt.Errorf("filename is required")
+	}
+	// Look up file_id and extension for the given username and filename
+	var fileID string
+	var origFilename string
+	err := r.Db.QueryRow("SELECT file_id, filename FROM user_files WHERE username = $1 AND filename = $2", username, filename).Scan(&fileID, &origFilename)
 	if err != nil {
 		return "", err
 	}
-	return filePath, nil
+	// Extract extension from original filename
+	ext := ""
+	if dot := strings.LastIndex(origFilename, "."); dot != -1 {
+		ext = origFilename[dot:]
+	}
+	if fileID == "" || ext == "" {
+		return "", fmt.Errorf("could not determine file_id or extension")
+	}
+	return "storage/" + fileID + ext, nil
 }
 
 // GetNextCopyFilename returns the next available filename for a duplicate upload by the same user

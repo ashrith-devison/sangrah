@@ -22,8 +22,11 @@ type DBExecutor interface {
 	Query(query string, args ...interface{}) (*sql.Rows, error)
 }
 
-// GetDB returns a singleton *sql.DB for the whole app (thread-safe)
-func GetDB() *sql.DB {
+// Injectable DB getter for testability
+var GetDBFunc = realGetDB
+
+// realGetDB returns a singleton *sql.DB for the whole app (thread-safe)
+func realGetDB() *sql.DB {
 	globalDBOnce.Do(func() {
 		db, err := ConnectPostgres()
 		if err != nil {
@@ -32,6 +35,11 @@ func GetDB() *sql.DB {
 		globalDB = db
 	})
 	return globalDB
+}
+
+// GetDB calls the injectable DB getter (can be overridden in tests)
+func GetDB() *sql.DB {
+	return GetDBFunc()
 }
 
 func WithDB(w http.ResponseWriter, handler func(db *sql.DB)) {

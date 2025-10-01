@@ -18,13 +18,16 @@ import (
 // @Failure 400 {object} utils.APIError "Missing username"
 // @Failure 500 {object} utils.APIError "Internal server error"
 // @Router /api/v1/file/storage-quota [get]
+// Injectable DB getter for testability
+var GetDBForAnalytics = utils.GetDB
+
 func GetUserStorageQuotaHandler(w http.ResponseWriter, r *http.Request) {
 	username := r.URL.Query().Get("username")
 	if username == "" {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username required")
 		return
 	}
-	fileCrudRepo := repos.NewFileCrudRepo(utils.GetDB())
+	fileCrudRepo := repos.NewFileCrudRepo(GetDBForAnalytics())
 	usedMB, err := fileCrudRepo.GetUserStorageUsedMB(username)
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to get storage usage", err.Error())
@@ -44,8 +47,8 @@ func GetUserStorageQuotaHandler(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} utils.APIResponse "Analytics data"
 // @Router /api/v1/file/storage/analytics [get]
 func AnalyticsHandler(w http.ResponseWriter, r *http.Request) {
-	fileCrudRepo := repos.NewFileCrudRepo(utils.GetDB())
-	fileRepo := repos.NewFileRepo(utils.GetDB())
+	fileCrudRepo := repos.NewFileCrudRepo(GetDBForAnalytics())
+	fileRepo := repos.NewFileRepo(GetDBForAnalytics())
 	logicalFiles, uniqueUploaders, err := fileCrudRepo.GetLogicalFilesAndUniqueUploaders()
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to fetch logical files and uploaders", err.Error())
@@ -101,7 +104,7 @@ func UserStatsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var username string
-	db := utils.GetDB()
+	db := GetDBForAnalytics()
 	fileCrudRepo := repos.NewFileCrudRepo(db)
 	// If input contains '@', treat as email and look up username
 	if strings.Contains(usernameOrEmail, "@") {

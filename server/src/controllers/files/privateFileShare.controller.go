@@ -48,6 +48,9 @@ func SharedWithMeHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 400 {object} dto.FileShareResponse "Invalid request"
 // @Failure 500 {object} dto.FileShareResponse "Internal server error"
 // @Router /api/v1/file/share [post]
+// Injectable DB getter for testability
+var GetDBForPrivateFileShare = utils.GetDB
+
 func ShareFileHandler(w http.ResponseWriter, r *http.Request) {
 	var req dto.FileShareRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -66,7 +69,7 @@ func ShareFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if the user is the owner of the file (by username and filename)
-	db := utils.GetDB()
+	db := GetDBForPrivateFileShare()
 	var owner string
 	err := db.QueryRow(`SELECT username FROM user_files WHERE username = $1 AND file_id = $2 AND permission = 'owner'`, req.Owner, req.FileID).Scan(&owner)
 	if err == sql.ErrNoRows || owner != req.Owner {

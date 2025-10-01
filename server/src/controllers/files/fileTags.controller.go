@@ -18,6 +18,9 @@ import (
 // @Failure 400 {object} utils.APIError "Missing fields"
 // @Failure 500 {object} utils.APIError "Internal server error"
 // @Router /api/v1/file/update-info [post]
+// Injectable DB getter for testability
+var GetDBForFileTags = utils.GetDB
+
 func UpdateFileInfoHandler(w http.ResponseWriter, r *http.Request) {
 	var payload struct {
 		Username string `json:"username"`
@@ -33,7 +36,7 @@ func UpdateFileInfoHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "username, filename required")
 		return
 	}
-	db := utils.GetDB()
+	db := GetDBForFileTags()
 	fileCrudRepo := repos.NewFileCrudRepo(db)
 	var tagsPtr *string
 	if payload.Tags != "" {
@@ -63,7 +66,7 @@ func OwnedFileInfoHandler(w http.ResponseWriter, r *http.Request) {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Missing username", "Username required")
 		return
 	}
-	db := utils.GetDB()
+	db := GetDBForFileTags()
 	fileCrudRepo := repos.NewFileCrudRepo(db)
 	rows, err := fileCrudRepo.QueryOwnedFileInfoRows(username)
 	if err != nil {
