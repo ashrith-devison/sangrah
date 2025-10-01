@@ -14,6 +14,9 @@ import (
 	"path/filepath"
 )
 
+// Injectable repo constructor for testability
+var NewFileCrudRepo = repos.NewFileCrudRepo
+
 // PublicAccessHandler serves a file or folder for public access via token
 // @Summary Access shared file/folder via public link
 // @Description Serves a file or folder for public access using a token
@@ -24,18 +27,35 @@ import (
 // @Failure 400 {object} utils.APIError "Missing or invalid token"
 // @Failure 404 {object} utils.APIError "File/Folder not found"
 // @Router /api/v1/file/path/view [get]
+// Interfaces for testability
+type PublicShareServiceInterface interface {
+	ResolveToken(token string) (dto.FileMeta, error)
+	SharePublicly(req dto.PublicShareRequest) (dto.PublicShareResponse, error)
+}
+type StorageServiceInterface interface {
+	GetFile(path string) (io.ReadCloser, error)
+}
+
+var LoadConfig = config.LoadConfig
+var NewPublicShareService = func(cfg *config.Config) PublicShareServiceInterface {
+	return servicesImpl.NewPublicShareService(cfg)
+}
+var NewStorageService = func(baseDir string) StorageServiceInterface {
+	return servicesImpl.NewStorageService(baseDir)
+}
+
 func PublicAccessHandler(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
 	if token == "" {
 		utils.WriteAPIError(w, http.StatusBadRequest, "Missing token", "No token provided")
 		return
 	}
-	cfg, err := config.LoadConfig()
+	cfg, err := LoadConfig()
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to load config", err.Error())
 		return
 	}
-	publicShareService := servicesImpl.NewPublicShareService(cfg)
+	publicShareService := NewPublicShareService(cfg)
 	fileMeta, err := publicShareService.ResolveToken(token)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -47,7 +67,7 @@ func PublicAccessHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Print(fileMeta)
 	// Use storage service for file retrieval
-	storageService := servicesImpl.NewStorageService("storage")
+	storageService := NewStorageService("storage")
 	file, err := storageService.GetFile(filepath.Base(fileMeta.Path))
 	if err != nil {
 		log.Printf("[PublicAccessHandler] Failed to open file: %s, error: %v", fileMeta.Path, err)
@@ -90,19 +110,23 @@ func PublicShareHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	db := GetDBForPublicFileShare()
-	fileCrudRepo := repos.NewFileCrudRepo(db)
+	if db == nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Database unavailable", "DB connection is nil")
+		return
+	}
+	fileCrudRepo := NewFileCrudRepo(db)
 	fileId, err := fileCrudRepo.GetFileIdByUsernameAndFilename(payload.Username, payload.Filename)
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusNotFound, "File not found or not owned", "File not found or not owned by user")
 		return
 	}
 	req := dto.PublicShareRequest{FileId: fileId, Username: payload.Username}
-	cfg, err := config.LoadConfig()
+	cfg, err := LoadConfig()
 	if err != nil {
 		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to load config", err.Error())
 		return
 	}
-	publicShareService := servicesImpl.NewPublicShareService(cfg)
+	publicShareService := NewPublicShareService(cfg)
 	resp, err := publicShareService.SharePublicly(req)
 	if err != nil {
 		if err == sql.ErrNoRows {

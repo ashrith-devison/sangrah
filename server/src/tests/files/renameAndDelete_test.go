@@ -28,13 +28,6 @@ func (m *mockFileCrudRepoForRename) RenameFileByFilename(username, filename, new
 	return m.renameFile(username, filename, newName)
 }
 
-// --- Error helpers ---
-type errMock string
-
-func (e errMock) Error() string {
-	return string(e)
-}
-
 // --- Mocks for DeleteFileByFilenameHandler ---
 type mockFileCrudRepoForDeleteByFilename struct {
 	deleteErr error
@@ -204,9 +197,9 @@ func TestRenameFileHandler_TableDriven(t *testing.T) {
 
 	tests := []testCase{
 		{
-			name:       "BadRequest_InvalidJSON",
-			body:       "invalid-json",
-			token:      "goodtoken",
+			name:  "BadRequest_InvalidJSON",
+			body:  "invalid-json",
+			token: "goodtoken",
 			mockJWT: func() {
 				files.ValidateJWT = func(token string) (jwt.MapClaims, error) {
 					return jwt.MapClaims{"user_id": "user1"}, nil
@@ -215,9 +208,9 @@ func TestRenameFileHandler_TableDriven(t *testing.T) {
 			expectCode: http.StatusBadRequest,
 		},
 		{
-			name:       "BadRequest_MissingFields",
-			body:       `{"filename":"","newName":"","username":""}`,
-			token:      "goodtoken",
+			name:  "BadRequest_MissingFields",
+			body:  `{"filename":"","newName":"","username":""}`,
+			token: "goodtoken",
 			mockJWT: func() {
 				files.ValidateJWT = func(token string) (jwt.MapClaims, error) {
 					return jwt.MapClaims{"user_id": "user1"}, nil

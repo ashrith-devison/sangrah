@@ -30,7 +30,6 @@ var ValidateMimeTypeForRename = utils.ValidateMimeType
 
 // Injectable dependencies for testability
 var ValidateJWT = utils.ValidateJWT
-var LoadConfig = config.LoadConfig
 
 type UserFileCrudServiceForDelete interface {
 	DeleteFile(req dto.DeleteFileRequest) error
@@ -164,69 +163,69 @@ func DeleteFileByFilenameHandler(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} utils.APIError "Internal server error"
 // @Router /api/v1/file/rename [post]
 func RenameFileHandler(w http.ResponseWriter, r *http.Request) {
-       // Extract JWT token from Authorization header
-       authHeader := r.Header.Get("Authorization")
-       if authHeader == "" {
-	       utils.WriteAPIError(w, http.StatusUnauthorized, "Missing Authorization header", "No token provided")
-	       return
-       }
-       tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-       claims, err := ValidateJWT(tokenStr)
-       if err != nil {
-	       utils.WriteAPIError(w, http.StatusUnauthorized, "Invalid token", err.Error())
-	       return
-       }
-       username, ok := claims["user_id"].(string)
-       if !ok || username == "" {
-	       utils.WriteAPIError(w, http.StatusUnauthorized, "Invalid token claims", "Username not found in token")
-	       return
-       }
+	// Extract JWT token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		utils.WriteAPIError(w, http.StatusUnauthorized, "Missing Authorization header", "No token provided")
+		return
+	}
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+	claims, err := ValidateJWT(tokenStr)
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusUnauthorized, "Invalid token", err.Error())
+		return
+	}
+	username, ok := claims["user_id"].(string)
+	if !ok || username == "" {
+		utils.WriteAPIError(w, http.StatusUnauthorized, "Invalid token claims", "Username not found in token")
+		return
+	}
 
-       var req dto.FileRenameRequest
-       if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-	       utils.WriteAPIError(w, http.StatusBadRequest, "Invalid request payload", err.Error())
-	       return
-       }
-       if req.Filename == "" || req.NewName == "" || req.Username == "" {
-	       utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "filename, newName, username required")
-	       return
-       }
-       // Reject if newName does not have an extension
-       if !strings.Contains(req.NewName, ".") || strings.HasPrefix(req.NewName, ".") || strings.HasSuffix(req.NewName, ".") {
-	       utils.WriteAPIError(w, http.StatusBadRequest, "Invalid new filename", "New filename must include a valid extension")
-	       return
-       }
-       db := GetDBForRename()
-       fileCrudRepo := NewFileCrudRepoForRename(db)
+	var req dto.FileRenameRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid request payload", err.Error())
+		return
+	}
+	if req.Filename == "" || req.NewName == "" || req.Username == "" {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Missing required fields", "filename, newName, username required")
+		return
+	}
+	// Reject if newName does not have an extension
+	if !strings.Contains(req.NewName, ".") || strings.HasPrefix(req.NewName, ".") || strings.HasSuffix(req.NewName, ".") {
+		utils.WriteAPIError(w, http.StatusBadRequest, "Invalid new filename", "New filename must include a valid extension")
+		return
+	}
+	db := GetDBForRename()
+	fileCrudRepo := NewFileCrudRepoForRename(db)
 
-       // Get file path using repo
-       filePath, err := fileCrudRepo.GetFilePathByUsernameAndFilename(req.Username, req.Filename)
-       if err != nil || filePath == "" {
-	       utils.WriteAPIError(w, http.StatusNotFound, "File not found", "File not found for MIME validation")
-	       return
-       }
-       // Open file and validate MIME type
-       f, err := OpenFileForRename(filePath)
-       if err != nil {
-	       utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to open file for MIME validation", err.Error())
-	       return
-       }
-       defer f.Close()
-       buffer := make([]byte, 512)
-       n, _ := f.Read(buffer)
-       if err := ValidateMimeTypeForRename(req.NewName, buffer[:n]); err != nil {
-	       utils.WriteAPIError(w, http.StatusBadRequest, "MIME type mismatch", err.Error())
-	       return
-       }
+	// Get file path using repo
+	filePath, err := fileCrudRepo.GetFilePathByUsernameAndFilename(req.Username, req.Filename)
+	if err != nil || filePath == "" {
+		utils.WriteAPIError(w, http.StatusNotFound, "File not found", "File not found for MIME validation")
+		return
+	}
+	// Open file and validate MIME type
+	f, err := OpenFileForRename(filePath)
+	if err != nil {
+		utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to open file for MIME validation", err.Error())
+		return
+	}
+	defer f.Close()
+	buffer := make([]byte, 512)
+	n, _ := f.Read(buffer)
+	if err := ValidateMimeTypeForRename(req.NewName, buffer[:n]); err != nil {
+		utils.WriteAPIError(w, http.StatusBadRequest, "MIME type mismatch", err.Error())
+		return
+	}
 
-       err = fileCrudRepo.RenameFileByFilename(req.Username, req.Filename, req.NewName)
-       if err != nil {
-	       if err == sql.ErrNoRows {
-		       utils.WriteAPIError(w, http.StatusNotFound, "File not found or not owned", "File not found or not owned by user")
-	       } else {
-		       utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to rename file", err.Error())
-	       }
-	       return
-       }
-       utils.WriteAPIResponse(w, http.StatusOK, "File renamed successfully", map[string]interface{}{"filename": req.Filename, "newName": req.NewName})
+	err = fileCrudRepo.RenameFileByFilename(req.Username, req.Filename, req.NewName)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			utils.WriteAPIError(w, http.StatusNotFound, "File not found or not owned", "File not found or not owned by user")
+		} else {
+			utils.WriteAPIError(w, http.StatusInternalServerError, "Failed to rename file", err.Error())
+		}
+		return
+	}
+	utils.WriteAPIResponse(w, http.StatusOK, "File renamed successfully", map[string]interface{}{"filename": req.Filename, "newName": req.NewName})
 }
